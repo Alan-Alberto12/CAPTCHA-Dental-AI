@@ -8,3 +8,15 @@ Roles:
 -  Arique Heemal (Backend & AI)
 -  Alan Alberto (Backend & AI)
 -  Yased Luna Villanueva (Backend & AI)
+
+Frontend:
+    React and React Native
+
+Backend: (In progress)
+    Python FastAPI, Pydantic, OpenAPI/Swagger, 
+
+Database: 
+    PostgreSQL or MongoDB
+
+Extras: 
+    Docker, Jira
