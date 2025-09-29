@@ -12,11 +12,17 @@ Roles:
 Frontend:
     React and React Native
 
-Backend: (In progress)
+Backend: 
     Python FastAPI, Pydantic, OpenAPI/Swagger, 
 
 Database: 
     PostgreSQL or MongoDB
+
+AI Learning Models: 
+    Pytorch or Tensorflow
+
+Image Processing:
+    OpenCV, DICOM
 
 Extras: 
     Docker, Jira
