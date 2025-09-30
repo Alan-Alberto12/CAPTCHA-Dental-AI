@@ -25,4 +25,4 @@ Image Processing:
     OpenCV, DICOM
 
 Extras: 
-    Docker, Jira
+    Docker, Jira,
