@@ -28,4 +28,7 @@ Extras:
     Docker, Jira,
 
 Dependencies Build:
-    docker-compose up --build
+    docker compose up --build //This also starts backend
+
+    To start backend:
+        docker compose up backend
