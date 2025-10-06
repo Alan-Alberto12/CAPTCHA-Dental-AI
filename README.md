@@ -21,8 +21,10 @@ Database:
 AI Learning Models: 
     Pytorch or Tensorflow
 
+(
 Image Processing:
     OpenCV, DICOM
+)
 
 Extras: 
     Docker, Jira,
