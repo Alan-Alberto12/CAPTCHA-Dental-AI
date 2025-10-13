@@ -16,7 +16,7 @@ Backend:
     Python FastAPI, Pydantic, OpenAPI/Swagger, 
 
 Database: 
-    PostgreSQL or MongoDB
+    PostgreSQL 
 
 AI Learning Models: 
     Pytorch or Tensorflow
@@ -28,3 +28,9 @@ Image Processing:
 
 Extras: 
     Docker, Jira,
+
+Dependencies Build:
+    docker compose up --build //This also starts backend
+
+    To start backend:
+        docker compose up backend
