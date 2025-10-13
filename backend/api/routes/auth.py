@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from services.database import get_db
 from models.user import User
-from schemas.user import UserCreate, UserLogin, UserResponse, Token
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
 from utils.security import (
     verify_password,
     get_password_hash,
@@ -97,4 +97,38 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     """Get current user information."""
+    return current_user
+
+@router.put("/editUser", response_model=UserResponse)
+def update_me(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user information."""
+    # Check if email or username is being changed and already exists
+    if user_update.email and user_update.email != current_user.email:
+        existing_user = db.query(User).filter(User.email == user_update.email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        current_user.email = user_update.email
+
+    if user_update.username and user_update.username != current_user.username:
+        existing_user = db.query(User).filter(User.username == user_update.username).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        current_user.username = user_update.username
+
+    if user_update.full_name is not None:
+        current_user.full_name = user_update.full_name
+
+    db.commit()
+    db.refresh(current_user)
+
     return current_user
