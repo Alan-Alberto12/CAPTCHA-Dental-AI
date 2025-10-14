@@ -1,16 +1,36 @@
-# React + Vite
+# CAPTCHA-Dental-AI
+UCF Senior Design 2025 Project: CAPTCHA for Dental AI. Using AI to help gameify, annotating and classifying teeth data.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Roles:
+-  Katerina Garkova (PM and Frontend)
+-  David Hablich (Frontend)
+-  Sebastian Reconco (Frontend)
+-  Arique Heemal (Backend & AI)
+-  Alan Alberto (Backend & AI)
+-  Yased Luna Villanueva (Backend & AI)
 
-Currently, two official plugins are available:
+Frontend:
+    React and React Native
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Backend: 
+    Python FastAPI, Pydantic, OpenAPI/Swagger, 
 
-## React Compiler
+Database: 
+    PostgreSQL 
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+AI Learning Models: 
+    Pytorch or Tensorflow
 
-## Expanding the ESLint configuration
+(
+Image Processing:
+    OpenCV, DICOM
+)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Extras: 
+    Docker, Jira,
+
+Dependencies Build:
+    docker compose up --build //This also starts backend
+
+    To start backend:
+        docker compose up backend
