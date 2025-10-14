@@ -12,7 +12,7 @@ function SignUp() {
     };
 
     return (
-      <div className="fixed inset-0 flex justify-center items-center bg-[url('./assets/background.png')] bg-center">
+      <div className="fixed inset-0 flex justify-center items-center bg-[url('../src/assets/dentalbackground.png')] bg-center">
         <div className="flex flex-col gap-4 w-100 p-6 bg-[#555879] rounded-xl shadow-lg">
           <h2 className="text-center text-3xl font-bold text-[#F4EBD3]">Sign Up to Play!</h2>
           <input className="border p-2 rounded text-[#F4EBD3]" placeholder="Enter Username" />
