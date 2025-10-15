@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta
+
+from datetime import datetime, timedelta, timezone
+import secrets
+import hashlib
 
 from services.database import get_db
-from models.user import User
-from schemas.user import UserCreate, UserLogin, UserResponse, Token
+from models.user import PasswordResetToken, User
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, settings
 from utils.security import (
+    hash_reset_token,
+    send_reset_email,
     verify_password,
     get_password_hash,
     create_access_token,
@@ -17,6 +22,7 @@ from utils.security import (
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     """Get current authenticated user from JWT token."""
@@ -96,3 +102,56 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def get_me(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     return current_user
+
+# ----- FORGOT PASSWORD -----
+@router.post("/forgot-password")
+def forgot_password(payload : ForgotPasswordRequest, bg : BackgroundTasks, db : Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == payload.email).first()
+
+    if user:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+        reset = PasswordResetToken(user_id = user.id, token_hash = token_hash, expires = datetime.now(timezone.utc) + timedelta(minutes = ACCESS_TOKEN_EXPIRE_MINUTES))
+        db.add(reset)
+        db.commit()
+
+        # Password reset link
+        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={raw_token}"
+        bg.add_task(send_reset_email, to_email=user.email, reset_link=reset_link)
+
+        return {"message": "If that email exists, a password reset link has been sent."}
+    
+@router.post("/reset-password", status_code = 200)
+def reset_password(payload : ResetPasswordRequest, db: Session = Depends(get_db)):
+    token_hash = hash_reset_token(payload.token)
+    token_row = db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
+
+    if not token_row:
+        raise HTTPException(status_code = status.HTTP_400_BAD_REQUEST, detail = "Invalid or expired token")
+    
+    # If token is expired
+    if token_row.expires < datetime.now(timezone.utc):
+        db.delete(token_row) #Delete it
+        db.commit()
+
+        raise HTTPException(status_code = status.HTTP_400_BAD_REQUEST, detail = "Invalid or expired token")
+    
+    # Update user password
+    user = db.query(User).filter(User.id == token_row.user_id).first()
+
+    if not user:
+        db.delete(token_row)
+        db.commit()
+
+        raise HTTPException(status_code = status.HTTP_400_BAD_REQUEST, detail = "Invalid or expired token")
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    db.add(user) 
+
+    # Delete token since it is a one time use
+    db.delete(token_row)
+    db.commit()
+
+    return {"message": "Password has been successfully reset"}
+

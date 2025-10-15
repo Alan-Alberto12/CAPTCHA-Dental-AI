@@ -55,5 +55,13 @@ services:
     stdin_open: true
     tty: true
 
+  mailhog:
+    image: mailhog/mailhog
+    container_name: captcha-mailhog
+    ports:
+      - "8025:8025"   # Web UI
+      - "1025:1025"   # SMTP
+
+
 volumes:
   postgres_data:
