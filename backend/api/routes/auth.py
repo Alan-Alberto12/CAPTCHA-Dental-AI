@@ -96,12 +96,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
+def get_user(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     return current_user
 
 @router.put("/editUser", response_model=UserResponse)
-def update_me(
+def update_user(
     user_update: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
