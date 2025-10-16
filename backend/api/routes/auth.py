@@ -55,7 +55,8 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     new_user = User(
         email=user_data.email,
         username=user_data.username,
-        full_name=user_data.full_name,
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
         hashed_password=hashed_password
     )
 
@@ -125,8 +126,11 @@ def update_me(
             )
         current_user.username = user_update.username
 
-    if user_update.full_name is not None:
-        current_user.full_name = user_update.full_name
+    if user_update.first_name is not None:
+        current_user.first_name = user_update.first_name
+
+    if user_update.last_name is not None:
+        current_user.last_name = user_update.last_name
 
     db.commit()
     db.refresh(current_user)
