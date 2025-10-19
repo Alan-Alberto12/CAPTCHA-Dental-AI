@@ -19,6 +19,12 @@ from utils.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
 
+#emailConfirmation imports
+from models.user import EmailConfirmationToken
+from schemas.user import EmailConfirmRequest
+from utils.security import send_confirmation_email
+
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -157,3 +163,50 @@ def reset_password(payload : ResetPasswordRequest, db: Session = Depends(get_db)
 
     return {"message": "Password has been successfully reset"}
 
+# emailConfirmation routes
+@router.post("/send-confirmation")
+def send_confirmation_email_endpoint(
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Send a new confirmation email to the logged-in user."""
+    if current_user.is_verified:
+        return {"message": "User already verified."}
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    confirmation = EmailConfirmationToken(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires=datetime.now(timezone.utc) + timedelta(hours=1)
+    )
+    db.add(confirmation)
+    db.commit()
+
+    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/confirm-email?token={raw_token}"
+    bg.add_task(send_confirmation_email, to_email=current_user.email, confirm_link=confirm_link)
+
+    return {"message": "Confirmation email sent."}
+
+
+@router.post("/confirm-email")
+def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
+    """Confirm a user's email via token link."""
+    token_hash = hashlib.sha256(payload.token.encode()).hexdigest()
+    token_row = db.query(EmailConfirmationToken).filter(EmailConfirmationToken.token_hash == token_hash).first()
+
+    if not token_row or token_row.expires < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+
+    user = db.query(User).filter(User.id == token_row.user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found")
+
+    user.is_verified = True
+    db.add(user)
+    db.delete(token_row)
+    db.commit()
+
+    return {"message": "Email successfully confirmed!"}

@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import datetime
 from typing import Optional
+from pydantic import BaseModel, EmailStr #emailConformation & resendEmailConfirmation
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -57,5 +58,11 @@ class Settings(BaseSettings):
 
     # tell pydantic-settings to read .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+class EmailConfirmRequest(BaseModel):
+    token: str
+
+class ResendConfirmationRequest(BaseModel):
+    email: EmailStr
 
 settings = Settings()

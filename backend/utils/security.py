@@ -70,3 +70,15 @@ def send_reset_email(to_email: str, reset_link: str):
         # DO NOT call smtp.starttls()
         # DO NOT call smtp.login()
         smtp.send_message(msg)
+
+def send_confirmation_email(to_email: str, confirm_link: str):
+    """Send email confirmation message with a verification link."""
+    msg = EmailMessage()
+    msg["From"] = settings.MAIL_FROM or "no-reply@captcha.local"
+    msg["To"] = to_email
+    msg["Subject"] = "Confirm your CAPTCHA Dental AI account"
+    msg.set_content(f"Click the link to confirm your email: {confirm_link}")
+
+    with smtplib.SMTP(host=settings.SMTP_HOST, port=settings.SMTP_PORT, timeout=10) as smtp:
+        # Using MailHog or a local dev SMTP (no TLS/login needed)
+        smtp.send_message(msg)
