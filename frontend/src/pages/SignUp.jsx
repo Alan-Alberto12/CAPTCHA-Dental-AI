@@ -48,6 +48,8 @@ function SignUp() {
         console.error("Error during signup:", error);
         setMessage("An error occurred. Please try again later.");
       }
+
+      const loginResponse = await fetch()
     };
 
     return (

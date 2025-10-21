@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import SignUp from './SignUp'
+import SignUp from './pages/SignUp'
+import Dashboard from './pages/Dashboard'
+import Play from './pages/Play'
+import Leaderboard from './pages/Leaderboard'
 
 
 function App() {
@@ -7,7 +10,7 @@ function App() {
 
   return (
     <div>
-      <SignUp />
+      <Leaderboard />
     </div>
   )
 }
