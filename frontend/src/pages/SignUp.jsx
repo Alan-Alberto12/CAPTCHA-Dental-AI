@@ -7,6 +7,7 @@ function SignUp() {
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [message, setMessage] = useState("");
+    const [isSubmitted, setIsSubmitted] = useState('');
 
 
     const handleSubmit = async (e) => {
@@ -38,6 +39,7 @@ function SignUp() {
           setFullName("");
           setPassword("");
           setConfirmPassword("");
+          setIsSubmitted(true);
           console.log(data.message);
         } 
         else {
@@ -48,8 +50,6 @@ function SignUp() {
         console.error("Error during signup:", error);
         setMessage("An error occurred. Please try again later.");
       }
-
-      const loginResponse = await fetch()
     };
 
     return (
