@@ -3,6 +3,7 @@ import React, { useState } from "react";
 function SignUp() {
     const [username, setUsername] = useState("");
     const [fullname, setFullName] = useState("");
+    const [lastname, setLastName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,7 +27,8 @@ function SignUp() {
           body: JSON.stringify({
             email,
             username,
-            full_name: fullname,
+            first_name: fullname,
+            last_name: lastname,
             password,
           }),
         });
@@ -37,6 +39,7 @@ function SignUp() {
           setEmail("");
           setUsername("");
           setFullName("");
+          setLastName("");
           setPassword("");
           setConfirmPassword("");
           setIsSubmitted(true);
@@ -59,15 +62,21 @@ function SignUp() {
             <h2 className="text-center text-3xl font-bold text-[#F4EBD3]">Sign Up to Play!</h2>
             <input 
               className="border p-2 rounded text-[#F4EBD3]" 
-              placeholder="Enter Username" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-            <input 
-              className="border p-2 rounded text-[#F4EBD3]" 
               placeholder="Enter First Name" 
               value={fullname}
               onChange={(e) => setFullName(e.target.value)}
+            />
+            <input 
+              className="border p-2 rounded text-[#F4EBD3]" 
+              placeholder="Enter Last Name" 
+              value={lastname}
+              onChange={(e) => setLastName(e.target.value)}
+            />
+            <input 
+              className="border p-2 rounded text-[#F4EBD3]" 
+              placeholder="Enter Username" 
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
             <input 
               className="border p-2 rounded text-[#F4EBD3]" 
