@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+<<<<<<< Updated upstream
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
@@ -31,6 +32,12 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+=======
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hook-form": "^7.65.0",
+    "react-router-dom": "^7.9.4"
+>>>>>>> Stashed changes
   },
   "devDependencies": {
     "@testing-library/react": "^16.0.1",
