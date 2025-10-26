@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from services.database import get_db
 from models.user import User
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate, UserUpdate
 from utils.security import (
     verify_password,
     get_password_hash,

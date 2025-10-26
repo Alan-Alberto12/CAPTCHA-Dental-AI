@@ -14,4 +14,24 @@ alembic==1.13.3
 pytest==8.3.3
 pytest-asyncio==0.24.0
 httpx==0.27.2
-bcrypt==4.0.1
+
+# ML and Image Processing
+torch>=2.2.0
+torchvision>=0.17.0
+opencv-python>=4.8.0
+pillow>=10.0.0
+numpy>=1.24.0
+scikit-image>=0.22.0
+
+# DICOM Processing
+pydicom>=2.4.0
+nibabel>=5.0.0
+
+# Kaggle Integration
+kagglehub>=0.2.0
+
+# Additional ML utilities
+albumentations>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+tqdm>=4.65.0

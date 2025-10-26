@@ -35,6 +35,8 @@ function SignUp() {
 
         if(response.ok) {
           const data = await response.json();
+          console.log("Response data:", data);  // Add this line
+          console.log("Status:", response.status);  // Add this line
           setMessage(`User ${data.username} registered successfully!`);
           setEmail("");
           setUsername("");

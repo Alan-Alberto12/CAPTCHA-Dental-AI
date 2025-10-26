@@ -29,8 +29,8 @@ Image Processing:
 Extras: 
     Docker, Jira,
 
-Dependencies Build:
-    docker compose up --build //This also starts backend
+Start all database, frontend, and backend:
+    docker compose up --build
 
-    To start backend:
+    To start backend only:
         docker compose up backend
