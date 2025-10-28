@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import datetime
 from typing import Optional
@@ -66,3 +66,6 @@ class ResendConfirmationRequest(BaseModel):
     email: EmailStr
 
 settings = Settings()
+
+class PromoteUserRequest(BaseModel):
+    
