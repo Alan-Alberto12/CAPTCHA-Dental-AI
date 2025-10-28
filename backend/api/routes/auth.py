@@ -8,7 +8,7 @@ import hashlib
 
 from services.database import get_db
 from models.user import PasswordResetToken, User
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, settings
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, settings, AdminUserRequest
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -47,6 +47,17 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
 
     return user
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Verify that the current user has admin privileges."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
 
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -210,3 +221,71 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Email successfully confirmed!"}
+
+
+# ADMIN ENDPOINTS
+@router.post("/admin/promote", response_model=UserResponse)
+def promote_user(
+    request: AdminUserRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    # Find the target user by email
+    target_user = db.query(User).filter(User.email == request.email).first()
+
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{request.email}' not found"
+        )
+
+    # Check if user is already an admin
+    if target_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User '{request.email}' is already an admin"
+        )
+
+    # Promote user to admin
+    target_user.is_admin = True
+    db.commit()
+    db.refresh(target_user)
+
+    return target_user
+
+# Demote Admin
+@router.post("/admin/demote", response_model=UserResponse)
+def demote_user(
+    request: AdminUserRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    # Find the user by email
+    target_user = db.query(User).filter(User.email == request.email).first()
+
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{request.email}' not found"
+        )
+
+    # Prevent self-demotion 
+    if target_user.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot demote yourself. Ask another admin to demote your account."
+        )
+
+    # Check if user is not an admin
+    if not target_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User '{request.email}' is not an admin"
+        )
+
+    # Demote user from admin
+    target_user.is_admin = False
+    db.commit()
+    db.refresh(target_user)
+
+    return target_user

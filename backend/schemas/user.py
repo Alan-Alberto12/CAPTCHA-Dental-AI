@@ -67,5 +67,7 @@ class ResendConfirmationRequest(BaseModel):
 
 settings = Settings()
 
-class PromoteUserRequest(BaseModel):
-    
+
+class AdminUserRequest(BaseModel):
+    """Request schema for admin operations on users (promote/demote)."""
+    email: EmailStr
