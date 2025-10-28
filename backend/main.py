@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth  # , dataset, images, predictions  # Temporarily disabled - missing dependencies
+from api.routes import auth
 from services.database import engine, Base
 from models.user import User
 from models.dataset import Dataset
@@ -29,9 +29,6 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
-# app.include_router(dataset.router)  # Temporarily disabled - missing dependencies
-# app.include_router(images.router)  # Temporarily disabled - missing dependencies
-# app.include_router(predictions.router)  # Temporarily disabled - missing dependencies
 
 @app.get("/")
 async def root():
