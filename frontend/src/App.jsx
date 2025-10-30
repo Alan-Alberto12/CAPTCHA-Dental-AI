@@ -1,18 +1,36 @@
-import React from "react";
+import { useState } from 'react'
+import Login from './pages/Login'
 import SignUp from './pages/SignUp'
-import Dashboard from "./pages/Dashboard"; // resolves to index.jsx in that folder
-import PlayPage from "./pages/PlayPage.jsx";
-import Header from "./components/Header.jsx";
-import BottomTabs from "./components/BottomTab.jsx";
+import Dashboard from './pages/Dashboard'
+import Play from './pages/PlayPage'
+import Leaderboard from './pages/Leaderboard'
 
-export default function App() {
-  //return <Dashboard />;
+
+function App() {
+  const [currentPage, setCurrentPage] = useState('login')
+
+  const renderPage = () => {
+    switch(currentPage) {
+      case 'login':
+        return <Login onNavigateToSignUp={() => setCurrentPage('signup')} />
+      case 'signup':
+        return <SignUp onNavigateToLogin={() => setCurrentPage('login')} />
+      case 'dashboard':
+        return <Dashboard />
+      case 'play':
+        return <Play />
+      case 'leaderboard':
+        return <Leaderboard />
+      default:
+        return <Login onNavigateToSignUp={() => setCurrentPage('signup')} />
+    }
+  }
+
   return (
-    <>
-        <Header/>
-        <Dashboard/>
-        <BottomTabs active="play"/>
-    </>
-
+  <div>
+    {renderPage()}
+  </div>
   )
 }
+
+export default App
