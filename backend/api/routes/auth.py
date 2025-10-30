@@ -1,28 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+# FastAPI core
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
 
-from datetime import datetime, timedelta, timezone
-import secrets
-import hashlib
+# Database & ORM
+from sqlalchemy.orm import Session; from sqlalchemy.sql import func; from services.database import get_db
 
-from services.database import get_db
-from models.user import PasswordResetToken, User
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, settings, AdminUserRequest
-from utils.security import (
-    hash_reset_token,
-    send_reset_email,
-    verify_password,
-    get_password_hash,
-    create_access_token,
-    decode_access_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES
-)
+# Utilities & stdlib
+from datetime import datetime, timedelta, timezone; import secrets, hashlib, random
 
-#emailConfirmation imports
-from models.user import EmailConfirmationToken
-from schemas.user import EmailConfirmRequest
-from utils.security import send_confirmation_email
+# Models
+from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats
+
+# Schemas
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, settings
+
+# Security utils
+from utils.security import hash_reset_token, send_reset_email, verify_password, get_password_hash, create_access_token, decode_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, send_confirmation_email
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -58,10 +51,9 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
-
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def signup(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user."""
+def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get_db)):
+    """Register a new user and send confirmation email automatically."""
     # Check if user already exists
     existing_user = db.query(User).filter(
         (User.email == user_data.email) | (User.username == user_data.username)
@@ -79,12 +71,28 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         email=user_data.email,
         username=user_data.username,
         full_name=user_data.full_name,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        is_verified=False
     )
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Generate and send confirmation token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    confirmation = EmailConfirmationToken(
+        user_id=new_user.id,
+        token_hash=token_hash,
+        expires=datetime.now(timezone.utc) + timedelta(hours=1)
+    )
+    db.add(confirmation)
+    db.commit()
+
+    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/confirm-email?token={raw_token}"
+    bg.add_task(send_confirmation_email, to_email=new_user.email, confirm_link=confirm_link)
 
     return new_user
 
@@ -289,3 +297,55 @@ def demote_user(
     db.refresh(target_user)
 
     return target_user
+
+
+@router.get("/challenges/next", response_model=ChallengeResponse)
+def get_next_challenge(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    challenge = db.query(Challenge).filter(Challenge.active == True).order_by(func.random()).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="No challenges available")
+    return challenge
+
+
+@router.post("/annotations", response_model=AnnotationResponse, status_code=201)
+def submit_annotation(
+    payload: AnnotationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    challenge = db.query(Challenge).filter(Challenge.id == payload.challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    annotation = Annotation(
+        user_id=current_user.id,
+        challenge_id=payload.challenge_id,
+        answer=payload.answer,
+        time_spent=payload.time_spent,
+        is_correct=None  # to be validated later by AI/admin
+    )
+    db.add(annotation)
+    db.commit()
+    db.refresh(annotation)
+
+    # Update stats
+    stats = db.query(UserStats).filter(UserStats.user_id == current_user.id).first()
+    if not stats:
+        stats = UserStats(user_id=current_user.id, total_annotations=1)
+        db.add(stats)
+    else:
+        stats.total_annotations += 1
+    db.commit()
+
+    return annotation
+
+
+@router.get("/annotations/me", response_model=list[AnnotationResponse])
+def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    annotations = (
+        db.query(Annotation)
+        .filter(Annotation.user_id == current_user.id)
+        .order_by(Annotation.created_at.desc())
+        .all()
+    )
+    return annotations
