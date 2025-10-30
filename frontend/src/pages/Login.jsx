@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-function Login({ onNavigateToSignUp }) {
+function Login({ onNavigateToSignUp, onNavigateToDashboard }) {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [message, setMessage] = useState("");
@@ -45,12 +45,31 @@ function Login({ onNavigateToSignUp }) {
                 const data = await response.json();
                 console.log("Login successful:", data);
                 setMessage("Login successful!");
-                // Here you can redirect to dashboard or store auth token
-                // For example: localStorage.setItem('token', data.token);
-                // window.location.href = '/dashboard';
+                // Store auth token if provided
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
+                // Redirect to dashboard
+                if (onNavigateToDashboard) {
+                    onNavigateToDashboard();
+                }
             } else {
                 const errorData = await response.json();
-                setMessage(errorData.detail || "Email or Password is incorrect");
+                console.log("Error response:", errorData);
+
+                // Handle different error response formats
+                let errorMessage = "Email or Password is incorrect";
+
+                if (typeof errorData.detail === 'string') {
+                    errorMessage = errorData.detail;
+                } else if (Array.isArray(errorData.detail)) {
+                    // Handle FastAPI validation errors (array of error objects)
+                    errorMessage = errorData.detail.map(err => err.msg).join(', ');
+                } else if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+
+                setMessage(errorMessage);
             }
         } catch (error) {
             console.error("Error during login:", error);

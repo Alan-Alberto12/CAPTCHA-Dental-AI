@@ -12,7 +12,10 @@ function App() {
   const renderPage = () => {
     switch(currentPage) {
       case 'login':
-        return <Login onNavigateToSignUp={() => setCurrentPage('signup')} />
+        return <Login
+          onNavigateToSignUp={() => setCurrentPage('signup')}
+          onNavigateToDashboard={() => setCurrentPage('dashboard')}
+        />
       case 'signup':
         return <SignUp onNavigateToLogin={() => setCurrentPage('login')} />
       case 'dashboard':
@@ -22,7 +25,10 @@ function App() {
       case 'leaderboard':
         return <Leaderboard />
       default:
-        return <Login onNavigateToSignUp={() => setCurrentPage('signup')} />
+        return <Login
+          onNavigateToSignUp={() => setCurrentPage('signup')}
+          onNavigateToDashboard={() => setCurrentPage('dashboard')}
+        />
     }
   }
 

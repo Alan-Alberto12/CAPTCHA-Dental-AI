@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-function SignUp() {
+function SignUp({ onNavigateToLogin }) {
     const [username, setUsername] = useState("");
     const [fullname, setFullName] = useState("");
     const [lastname, setLastName] = useState("");
@@ -75,7 +75,8 @@ function SignUp() {
                   </p>
                 </div>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={onNavigateToLogin}
                   className="border p-3 rounded-xl bg-[#F4EBD3] text-[#555879] text-lg font-bold hover:bg-[#D4C4A8] transition-all"
                 >
                   Back to Login
@@ -143,6 +144,13 @@ function SignUp() {
             >
               Register
             </button>
+
+            <a
+              href="/"
+              className="text-center text-[#F4EBD3] text-sm hover:underline"
+            >
+              Back to Home Page
+            </a>
 
             {message && !isSubmitted && (
             <p className="text-center text-[#F4EBD3] font-semibold">{message}</p>

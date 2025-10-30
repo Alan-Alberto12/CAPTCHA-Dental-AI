@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function DentalDashboard() {
+export default function Dashboard() {
   const currentPage = 'dashboard'; // Track which page we're on
 
   // Mock data for cases
