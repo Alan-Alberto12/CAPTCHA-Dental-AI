@@ -1,18 +1,18 @@
-import { useState } from 'react'
+import React from "react";
 import SignUp from './pages/SignUp'
-import Dashboard from './pages/Dashboard'
-import Play from './pages/Play'
-import Leaderboard from './pages/Leaderboard'
+import Dashboard from "./pages/Dashboard"; // resolves to index.jsx in that folder
+import PlayPage from "./pages/PlayPage.jsx";
+import Header from "./components/Header.jsx";
+import BottomTabs from "./components/BottomTab.jsx";
 
-
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
+  //return <Dashboard />;
   return (
-    <div>
-      <SignUp/>
-    </div>
+    <>
+        <Header/>
+        <Dashboard/>
+        <BottomTabs active="play"/>
+    </>
+
   )
 }
-
-export default App

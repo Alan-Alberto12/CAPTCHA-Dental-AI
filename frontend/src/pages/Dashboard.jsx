@@ -33,8 +33,7 @@ export default function DentalDashboard() {
 
   return (
     <div className="min-h-screen bg-[#98A1BC]">
-      {/* Top Navigation */}
-      <nav className="bg-[#555879] text-white">
+      {/* <nav className="bg-[#555879] text-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-center gap-12 py-4">
             <a
@@ -64,6 +63,8 @@ export default function DentalDashboard() {
           </div>
         </div>
       </nav>
+      *}
+    
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
