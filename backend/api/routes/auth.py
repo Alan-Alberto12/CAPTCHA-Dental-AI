@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone; import secrets, hashlib, ran
 from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats
 
 # Schemas
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, settings
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport, settings
 
 # Security utils
 from utils.security import hash_reset_token, send_reset_email, verify_password, get_password_hash, create_access_token, decode_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, send_confirmation_email
@@ -349,3 +349,56 @@ def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depen
         .all()
     )
     return annotations
+
+
+@router.post("/admin/import-images", status_code=201)
+def import_images(
+    payload: BulkImageImport,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Import multiple images and automatically create challenges (admin only)"""
+
+    # Check admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can import images"
+        )
+
+    imported_count = 0
+    created_challenges = 0
+
+    for image_data in payload.images:
+        # Check if image already exists
+        existing = db.query(Image).filter(Image.filename == image_data.filename).first()
+        if existing:
+            continue  # Skip duplicates
+
+        # Create image
+        image = Image(
+            filename=image_data.filename,
+            image_url=image_data.image_url,
+            question_type=image_data.question_type,
+            question_text=image_data.question_text
+        )
+        db.add(image)
+        db.flush()  # Get the image ID
+
+        # Automatically create a challenge for this image
+        challenge = Challenge(
+            image_id=image.id,
+            active=True
+        )
+        db.add(challenge)
+
+        imported_count += 1
+        created_challenges += 1
+
+    db.commit()
+
+    return {
+        "message": "Images imported successfully",
+        "images_imported": imported_count,
+        "challenges_created": created_challenges
+    }

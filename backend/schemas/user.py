@@ -126,6 +126,19 @@ class AnnotationCreate(BaseModel):
     time_spent: Optional[float] = None
 
 
+class ImageImport(BaseModel):
+    """Schema for importing a single image"""
+    filename: str
+    image_url: str
+    question_type: str
+    question_text: str
+
+
+class BulkImageImport(BaseModel):
+    """Schema for bulk importing images"""
+    images: list[ImageImport]
+
+
 class AnnotationResponse(BaseModel):
     id: int
     answer: str
