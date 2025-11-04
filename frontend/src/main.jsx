@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 
@@ -9,7 +10,8 @@ import App from './App.jsx'
 // http://localhost:8000/health for API
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
-    <h1 className="font-bold text-blue-400">if this text is blue, tailwind works :D</h1>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 )
