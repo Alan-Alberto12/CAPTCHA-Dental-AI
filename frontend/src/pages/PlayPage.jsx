@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMode } from "../modes/registry.js";
+import Header from "../components/Header";
 
 /**
  * PlayPage — Step 1a: shell only (no registry, no data)
@@ -40,11 +41,13 @@ export default function PlayPage() {
     const Board = mode.Board;
 
     return (
-        <div className="mx-auto w-full max-w-4xl px-3 md:px-4 lg:px-8 pb-20 md:pb-6">
-            {/* Prompt Bar */}
-            <div className="mt-3 rounded-xl bg-[#525470] px-4 py-3 text-[#F5EEDC]">
-                <h1 className="text-base font-semibold">{roundData.prompt}</h1>
-            </div>
+        <div className="min-h-screen bg-[#98A1BC]">
+            <Header />
+            <div className="mx-auto w-full max-w-4xl px-3 md:px-4 lg:px-8 pb-20 md:pb-6">
+                {/* Prompt Bar */}
+                <div className="mt-3 rounded-xl bg-[#525470] px-4 py-3 text-[#F5EEDC]">
+                    <h1 className="text-base font-semibold">{roundData.prompt}</h1>
+                </div>
 
             {/* Board slot (placeholder) */}
             <div className="mt-4">
@@ -76,6 +79,7 @@ export default function PlayPage() {
                     {/*<p className="mt-1">Score change: {result.scoreDelta > 0 ? "+" : ""}{result.scoreDelta}</p>*/}
                 </div>
             )}
+            </div>
         </div>
     );
 }

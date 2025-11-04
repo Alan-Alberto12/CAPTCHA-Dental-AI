@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
-function Login({ onNavigateToSignUp, onNavigateToDashboard }) {
+function Login() {
+    const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [message, setMessage] = useState("");
@@ -11,6 +13,56 @@ function Login({ onNavigateToSignUp, onNavigateToDashboard }) {
     const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
     const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
     const [isEmailSent, setIsEmailSent] = useState(false);
+
+    // Email confirmation states
+    const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+    const [emailConfirmationStatus, setEmailConfirmationStatus] = useState(null); // 'success' or 'error'
+
+    // Prevent duplicate confirmation attempts (React StrictMode runs effects twice)
+    const confirmationAttempted = useRef(false);
+
+    // Check for email confirmation token on component mount
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        if (token && !confirmationAttempted.current) {
+            confirmationAttempted.current = true;
+            handleEmailConfirmation(token);
+        }
+    }, []);
+
+    const handleEmailConfirmation = async (token) => {
+        console.log("Attempting email confirmation with token:", token);
+        try {
+            const response = await fetch("http://127.0.0.1:8000/auth/confirm-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token }),
+            });
+
+            console.log("Email confirmation response status:", response.status);
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log("Email confirmation success:", data);
+                setEmailConfirmationStatus('success');
+                setShowEmailConfirmation(true);
+            } else {
+                const errorData = await response.json();
+                console.log("Email confirmation error response:", errorData);
+                setEmailConfirmationStatus('error');
+                setShowEmailConfirmation(true);
+            }
+        } catch (error) {
+            console.error("Error confirming email:", error);
+            setEmailConfirmationStatus('error');
+            setShowEmailConfirmation(true);
+        }
+
+        // Clean up URL by removing the token parameter
+        window.history.replaceState({}, document.title, window.location.pathname);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -32,27 +84,27 @@ function Login({ onNavigateToSignUp, onNavigateToDashboard }) {
         }
 
         try {
+            // OAuth2 expects form data with 'username' field (can be email or username)
+            const formData = new URLSearchParams();
+            formData.append('username', email); // backend accepts email in username field
+            formData.append('password', password);
+
             const response = await fetch("http://127.0.0.1:8000/auth/login", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    email,
-                    password,
-                }),
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: formData,
             });
 
             if (response.ok) {
                 const data = await response.json();
                 console.log("Login successful:", data);
                 setMessage("Login successful!");
-                // Store auth token if provided
-                if (data.token) {
-                    localStorage.setItem('token', data.token);
+                // Store auth token if provided (backend returns 'access_token')
+                if (data.access_token) {
+                    localStorage.setItem('token', data.access_token);
                 }
                 // Redirect to dashboard
-                if (onNavigateToDashboard) {
-                    onNavigateToDashboard();
-                }
+                navigate('/dashboard');
             } else {
                 const errorData = await response.json();
                 console.log("Error response:", errorData);
@@ -118,6 +170,55 @@ function Login({ onNavigateToSignUp, onNavigateToDashboard }) {
 
     return (
         <div className="fixed inset-0 flex justify-center items-center bg-[url('../src/assets/dentalbackground.png')] bg-center">
+
+            {/* Email Confirmation Modal - Success */}
+            {showEmailConfirmation && emailConfirmationStatus === 'success' && (
+                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center">
+                    <div className="bg-[#555879] rounded-2xl p-16 max-w-2xl w-full mx-4 text-center shadow-2xl">
+                        <h1 className="text-5xl font-bold text-green-300 mb-10">Email Confirmed!</h1>
+                        <div className="mb-8">
+                            <p className="text-[#F4EBD3] text-2xl leading-relaxed">
+                                Your email has been successfully confirmed!
+                            </p>
+                            <p className="text-[#F4EBD3] text-2xl leading-relaxed mt-4">
+                                You can now log in with your credentials.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => window.close()}
+                            className="border p-3 rounded-xl bg-[#F4EBD3] text-[#555879] text-lg font-bold hover:bg-[#D4C4A8] transition-all"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Email Confirmation Modal - Error */}
+            {showEmailConfirmation && emailConfirmationStatus === 'error' && (
+                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center">
+                    <div className="bg-[#555879] rounded-2xl p-16 max-w-2xl w-full mx-4 text-center shadow-2xl">
+                        <h1 className="text-5xl font-bold text-red-300 mb-10">Confirmation Failed</h1>
+                        <div className="mb-8">
+                            <p className="text-[#F4EBD3] text-2xl leading-relaxed">
+                                The link may be expired or invalid.
+                            </p>
+                            <p className="text-[#F4EBD3] text-xl leading-relaxed mt-4">
+                                Please try signing up again or contact support if the problem persists.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => window.close()}
+                            className="border p-3 rounded-xl bg-[#F4EBD3] text-[#555879] text-lg font-bold hover:bg-[#D4C4A8] transition-all"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Forgot Password Modal - Email Sent Confirmation */}
             {showForgotPassword && isEmailSent && (
                 <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50">
@@ -246,7 +347,7 @@ function Login({ onNavigateToSignUp, onNavigateToDashboard }) {
                         <button
                             type="button"
                             className="underline hover:text-[#D4C4A8] transition-colors"
-                            onClick={onNavigateToSignUp}
+                            onClick={() => navigate('/signup')}
                         >
                             Sign Up
                         </button>

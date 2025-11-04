@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-function SignUp({ onNavigateToLogin }) {
+function SignUp() {
+    const navigate = useNavigate();
     const [username, setUsername] = useState("");
     const [fullname, setFullName] = useState("");
     const [lastname, setLastName] = useState("");
@@ -76,7 +78,7 @@ function SignUp({ onNavigateToLogin }) {
                 </div>
                 <button
                   type="button"
-                  onClick={onNavigateToLogin}
+                  onClick={() => navigate('/login')}
                   className="border p-3 rounded-xl bg-[#F4EBD3] text-[#555879] text-lg font-bold hover:bg-[#D4C4A8] transition-all"
                 >
                   Back to Login
@@ -145,12 +147,13 @@ function SignUp({ onNavigateToLogin }) {
               Register
             </button>
 
-            <a
-              href="/"
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
               className="text-center text-[#F4EBD3] text-sm hover:underline"
             >
-              Back to Home Page
-            </a>
+              Back to Login
+            </button>
 
             {message && !isSubmitted && (
             <p className="text-center text-[#F4EBD3] font-semibold">{message}</p>

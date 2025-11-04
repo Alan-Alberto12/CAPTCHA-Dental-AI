@@ -49,7 +49,7 @@ class ResetPasswordRequest(BaseModel):
 class Settings(BaseSettings):
     # --- app / db ---
     DATABASE_URL: str = "postgresql://captcha_user:captcha_password@db:5432/captcha_dental_db"
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # --- auth/JWT ---
     SECRET_KEY: str = "your-secret-key"
