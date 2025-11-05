@@ -149,3 +149,45 @@ class AnnotationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Data consent schemas
+class ConsentSubmit(BaseModel):
+    """Schema for user submitting their data consent choice"""
+    consent_given: bool = Field(..., description="True = opt-in, False = opt-out")
+
+
+class ConsentResponse(BaseModel):
+    """Response after submitting consent"""
+    id: int
+    consent_given: bool
+    consented_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ConsentStatusResponse(BaseModel):
+    """Current consent status for a user"""
+    user_id: int
+    username: str
+    has_given_consent: Optional[bool] = None  # None = not asked yet
+    last_update: Optional[datetime] = None
+    has_responded: bool = Field(..., description="Whether user has ever responded to consent prompt")
+
+
+class ConsentHistoryItem(BaseModel):
+    """Single consent history entry"""
+    id: int
+    consent_given: bool
+    consented_at: datetime
+    ip_address: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ConsentHistoryResponse(BaseModel):
+    """Complete consent history for a user"""
+    user_id: int
+    history: list[ConsentHistoryItem]

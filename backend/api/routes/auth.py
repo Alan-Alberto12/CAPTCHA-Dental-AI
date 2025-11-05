@@ -3,16 +3,17 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 # Database & ORM
+from sqlalchemy import Integer
 from sqlalchemy.orm import Session; from sqlalchemy.sql import func; from services.database import get_db
 
 # Utilities & stdlib
 from datetime import datetime, timedelta, timezone; import secrets, hashlib, random
 
 # Models
-from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats
+from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats, UserDataConsent
 
 # Schemas
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport, settings
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport, settings, ConsentSubmit, ConsentResponse, ConsentStatusResponse, ConsentHistoryResponse, ConsentHistoryItem
 
 # Security utils
 from utils.security import hash_reset_token, send_reset_email, verify_password, get_password_hash, create_access_token, decode_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, send_confirmation_email
@@ -401,4 +402,158 @@ def import_images(
         "message": "Images imported successfully",
         "images_imported": imported_count,
         "challenges_created": created_challenges
+    }
+
+# Data Consent Endpoints
+
+# Grab current user's consent status
+@router.get("/consent/status", response_model=ConsentStatusResponse)
+def get_consent_status(
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    return ConsentStatusResponse(
+        user_id = current_user.id,
+        username = current_user.username,
+        has_given_consent = current_user.has_given_data_consent,
+        last_update = current_user.last_consent_update,
+        has_responded = current_user.has_given_data_consent is not None
+    )
+
+# Current Users consent opt in or out
+@router.post("/consent/submit", response_model=ConsentResponse, status_code=status.HTTP_201_CREATED)
+def submit_consent(
+    payload : ConsentSubmit,
+    db : Session = Depends(get_db),
+    current_user : User = Depends(get_current_user)
+):
+    consent_record = UserDataConsent(
+        user_id = current_user.id,
+        consent_given = payload.consent_given,
+        consented_at = datetime.now(timezone.utc),
+        ip_address = None,
+        user_agent = None
+    )
+    db.add(consent_record)
+
+    current_user.has_given_data_consent = payload.consent_given
+    current_user.last_consent_update = datetime.now(timezone.utc)
+    db.add(current_user)
+
+    db.commit()
+    db.refresh(consent_record)
+
+    return consent_record
+
+# Get the complete consent history for the current user
+@router.get("/consent/history", response_model=ConsentHistoryResponse)
+def get_consent_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    history = (
+        db.query(UserDataConsent)
+        .filter(UserDataConsent.user_id == current_user.id)
+        .order_by(UserDataConsent.consented_at.desc())
+        .all()
+    )
+
+    return ConsentHistoryResponse(
+        user_id=current_user.id,
+        history=[ConsentHistoryItem.model_validate(record) for record in history]
+    )
+
+# Get consent statistics (Admin privilege)
+@router.get("/admin/consent/summary")
+def get_consent_summary(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    total_users = db.query(User).count()
+    opted_in = db.query(User).filter(User.has_given_data_consent == True).count()
+    opted_out = db.query(User).filter(User.has_given_data_consent == False).count()
+    not_responded = db.query(User).filter(User.has_given_data_consent.is_(None)).count()
+
+    opt_in_percentage = (opted_in / total_users * 100) if total_users > 0 else 0
+
+    return {
+        "total_users": total_users,
+        "opted_in": opted_in,
+        "opted_out": opted_out,
+        "not_responded": not_responded,
+        "opt_in_percentage": round(opt_in_percentage, 2)
+    }
+
+# Grab all users that have opted in (Admin privilege)
+@router.get("/admin/consent/users")
+def get_users_consent_status(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    users = db.query(User).all()
+
+    return {
+        "users": [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "has_given_consent": user.has_given_data_consent,
+                "last_consent_update": user.last_consent_update,
+                "created_at": user.created_at
+            }
+            for user in users
+        ]
+    }
+
+# Grab stats for users who have opted in (Admin privilege)
+@router.get("/admin/stats/user")
+def get_user_stats(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    stats = (
+        db.query(
+            User.id,
+            User.username,
+            User.email,
+            func.count(Annotation.id).label("total_attempts"),
+            func.sum(func.cast(Annotation.is_correct == True, Integer)).label("correct_answers"),
+            func.sum(func.cast(Annotation.is_correct == False, Integer)).label("incorrect_answers"),
+            func.avg(Annotation.time_spent).label("avg_time_spent")
+        )
+        .join(Annotation, User.id == Annotation.user_id)
+        .filter(User.has_given_data_consent == True)
+        .group_by(User.id, User.username, User.email)
+        .all()
+    )
+
+    results = []
+    for stat in stats:
+        correct = stat.correct_answers or 0
+        incorrect = stat.incorrect_answers or 0
+        accuracy = (correct / stat.total_attempts * 100) if stat.total_attempts > 0 else 0
+        results.append({
+            "user_id": stat.id,
+            "username": stat.username,
+            "email": stat.email,
+            "total_attempts": stat.total_attempts,
+            "correct_answers": correct,
+            "incorrect_answers": incorrect,
+            "accuracy_percentage": round(accuracy, 2),
+            "avg_time_spent": round(stat.avg_time_spent, 2) if stat.avg_time_spent else 0
+        })
+    
+     # Get consent breakdown
+    total_users = db.query(User).count()
+    opted_in = db.query(User).filter(User.has_given_data_consent == True).count()
+
+    return {
+        "stats": results,
+        "meta": {
+            "total_users_in_stats": len(results),
+            "total_users": total_users,
+            "opted_in_users": opted_in,
+            "note": "Only includes users who have explicitly opted in to data usage"
+        }
     }
