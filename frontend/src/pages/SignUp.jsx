@@ -47,10 +47,23 @@ function SignUp() {
           setPassword("");
           setConfirmPassword("");
           setIsSubmitted(true);
-        } 
+        }
         else {
           const errorData = await response.json();
-          setMessage(errorData.detail || "Signup failed.");
+
+          // Handle different error response formats
+          let errorMessage = "Signup failed.";
+
+          if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else if (Array.isArray(errorData.detail)) {
+            // Handle FastAPI validation errors (array of error objects)
+            errorMessage = errorData.detail.map(err => err.msg).join(', ');
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+
+          setMessage(errorMessage);
         }
       } catch (error) {
         console.error("Error during signup:", error);

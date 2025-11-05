@@ -73,3 +73,44 @@ class ResendConfirmationRequest(BaseModel):
     email: EmailStr
 
 settings = Settings()
+
+#admin user schema
+class AdminUserRequest(BaseModel):
+    """Request schema for admin operations on users (promote/demote)."""
+    email: EmailStr
+
+# annotation, image, challenge schemas
+class ImageResponse(BaseModel):
+    id: int
+    filename: str
+    image_url: str
+    question_type: str
+    question_text: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class AnnotationCreate(BaseModel):
+    challenge_id: int
+    answer: str
+    time_spent: Optional[float] = None
+
+class AnnotationResponse(BaseModel):
+    id: int
+    answer: str
+    is_correct: Optional[bool] = None
+    time_spent: Optional[float] = None
+    created_at: datetime
+    challenge: ChallengeResponse
+
+    class Config:
+        from_attributes = True
+
+class ChallengeResponse(BaseModel):
+    id: int
+    image: ImageResponse
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

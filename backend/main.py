@@ -2,11 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import auth
 from services.database import engine, Base
-from models.user import User
+from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation
 # TODO: Uncomment when these modules are created
 # from models.dataset import Dataset
-# from models.image import Image
-# from models.annotation import Annotation
 # from models.prediction import Prediction, SegmentationModel
 
 # Create database tables
