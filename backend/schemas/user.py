@@ -1,37 +1,53 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr #emailConformation & resendEmailConfirmation
 
+# user schemas
 class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    full_name: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
-
-class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-class UserResponse(UserBase): 
+# stats schemas
+class UserStatsResponse(BaseModel):
+    total_points: int
+    total_annotations: int
+    accuracy_rate: float
+    daily_streak: int
+
+    class Config:
+        from_attributes = True
+
+# annotation summary schema
+class AnnotationSummary(BaseModel):
     id: int
-    is_active: bool
-    is_admin: bool
+    challenge_id: int
+    answer: str
+    is_correct: bool | None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    stats: Optional[UserStatsResponse] = None
+
+    class Config:
+        from_attributes = True
+
+#auth / token schemas
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -49,7 +65,7 @@ class ResetPasswordRequest(BaseModel):
 class Settings(BaseSettings):
     # --- app / db ---
     DATABASE_URL: str = "postgresql://captcha_user:captcha_password@db:5432/captcha_dental_db"
-    FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     # --- auth/JWT ---
     SECRET_KEY: str = "your-secret-key"
@@ -66,6 +82,8 @@ class Settings(BaseSettings):
     # tell pydantic-settings to read .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+
+#email confirmation schemas
 class EmailConfirmRequest(BaseModel):
     token: str
 
@@ -73,3 +91,61 @@ class ResendConfirmationRequest(BaseModel):
     email: EmailStr
 
 settings = Settings()
+
+#admin user schema
+class AdminUserRequest(BaseModel):
+    """Request schema for admin operations on users (promote/demote)."""
+    email: EmailStr
+
+
+# annotation, image, challenge schemas
+class ImageResponse(BaseModel):
+    id: int
+    filename: str
+    image_url: str
+    question_type: str
+    question_text: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChallengeResponse(BaseModel):
+    id: int
+    image: ImageResponse
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AnnotationCreate(BaseModel):
+    challenge_id: int
+    answer: str
+    time_spent: Optional[float] = None
+
+
+class ImageImport(BaseModel):
+    """Schema for importing a single image"""
+    filename: str
+    image_url: str
+    question_type: str
+    question_text: str
+
+
+class BulkImageImport(BaseModel):
+    """Schema for bulk importing images"""
+    images: list[ImageImport]
+
+
+class AnnotationResponse(BaseModel):
+    id: int
+    answer: str
+    is_correct: Optional[bool] = None
+    time_spent: Optional[float] = None
+    created_at: datetime
+    challenge: ChallengeResponse
+
+    class Config:
+        from_attributes = True

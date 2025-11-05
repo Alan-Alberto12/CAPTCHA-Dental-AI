@@ -6,8 +6,8 @@ import secrets
 import hashlib
 
 from services.database import get_db
-from models.user import User, PasswordResetToken, EmailConfirmationToken
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, settings
+from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, settings
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -228,39 +228,46 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
 
     return {"message": "Email successfully confirmed!"}
 
-@router.put("/editUser", response_model=UserResponse)
-def update_user(
-    user_update: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+
+@router.post("/annotations", response_model=AnnotationResponse, status_code=201)
+def submit_annotation(
+    payload: AnnotationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Update current user information."""
-    # Check if email or username is being changed and already exists
-    if user_update.email and user_update.email != current_user.email:
-        existing_user = db.query(User).filter(User.email == user_update.email).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-        current_user.email = user_update.email
+    challenge = db.query(Challenge).filter(Challenge.id == payload.challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
 
-    if user_update.username and user_update.username != current_user.username:
-        existing_user = db.query(User).filter(User.username == user_update.username).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
-        current_user.username = user_update.username
-
-    if user_update.first_name is not None:
-        current_user.first_name = user_update.first_name
-
-    if user_update.last_name is not None:
-        current_user.last_name = user_update.last_name
-
+    annotation = Annotation(
+        user_id=current_user.id,
+        challenge_id=payload.challenge_id,
+        answer=payload.answer,
+        time_spent=payload.time_spent,
+        is_correct=None  # to be validated later by AI/admin
+    )
+    db.add(annotation)
     db.commit()
-    db.refresh(current_user)
+    db.refresh(annotation)
 
-    return current_user
+    # Update stats
+    stats = db.query(UserStats).filter(UserStats.user_id == current_user.id).first()
+    if not stats:
+        stats = UserStats(user_id=current_user.id, total_annotations=1)
+        db.add(stats)
+    else:
+        stats.total_annotations += 1
+    db.commit()
+
+    return annotation
+
+
+@router.get("/annotations/me", response_model=list[AnnotationResponse])
+def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    annotations = (
+        db.query(Annotation)
+        .filter(Annotation.user_id == current_user.id)
+        .order_by(Annotation.created_at.desc())
+        .all()
+    )
+    return annotations
