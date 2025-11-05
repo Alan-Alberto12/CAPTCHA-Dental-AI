@@ -6,7 +6,6 @@ from models.user import User
 # TODO: Uncomment when these modules are created
 # from models.dataset import Dataset
 # from models.image import Image
-# from models.annotation import Annotation
 # from models.prediction import Prediction, SegmentationModel
 
 # Create database tables

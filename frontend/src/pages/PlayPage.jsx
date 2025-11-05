@@ -16,6 +16,7 @@ export default function PlayPage() {
     const [answerDraft, setAnswerDraft] = useState(null);
     const [result, setResult] = useState(null);
     const [submitMessage, setSubmitMessage] = useState("");
+    const [challengeId] = useState(1);
 
     useEffect(() => {
         const rd = mode.createRound();
@@ -23,6 +24,8 @@ export default function PlayPage() {
         setAnswerDraft(mode.initialAnswer(rd));
         setResult(null);
         setSubmitMessage("");
+
+        // For demo: do not fetch challenges; use hardcoded challengeId=1
     }, [mode]);
 
     async function handleSubmit() {
@@ -39,7 +42,7 @@ export default function PlayPage() {
         }
 
         const payload = {
-            challenge_id: 1,
+            challenge_id: challengeId,
             // Backend expects a string for `answer` (AnnotationCreate.answer)
             // Join selected IDs into a simple comma-separated string for the demo
             answer: Array.from(answerDraft || []).join(','),
