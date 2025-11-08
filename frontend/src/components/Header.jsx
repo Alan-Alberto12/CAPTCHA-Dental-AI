@@ -56,6 +56,10 @@ export default function Header( {
         navigate('/login');
     };
 
+    const handleEditUser = () => {
+        navigate('/edit-user');
+    }
+
     return (
         <header className="sticky top-0 z-50 border-b bg-[#525470] border-[#98A1B6]">
             <div className="grid h-12 w-full grid-cols-2 md:grid-cols-3 items-center px-3 md:px-4 lg:px-8">
@@ -97,14 +101,21 @@ export default function Header( {
 
                     {/* Dropdown Menu */}
                     {showDropdown && (
-                        <div className="absolute right-0 mt-2 w-48 bg-[#F5EEDC] rounded-lg shadow-lg border border-[#98A1B6] z-50">
+                        <div className="absolute right-0 mt-2 w-40 bg-[#F5EEDC] rounded-lg shadow-lg border border-[#98A1B6] z-50">
                             <button
                                 onClick={handleSignOut}
                                 className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#E5DECC] rounded-lg transition-colors font-semibold"
                             >
                                 Sign Out
                             </button>
+                            <button
+                                onClick={handleEditUser}
+                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#E5DECC] rounded-lg transition-colors font-semibold"
+                            >
+                                Edit Account
+                            </button>
                         </div>
+                        
                     )}
                 </div>
             </div>
