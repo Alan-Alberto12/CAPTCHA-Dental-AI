@@ -2,13 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import timedelta, datetime, timezone
 import secrets
 import hashlib
 
 from services.database import get_db
-from models.user import User, PasswordResetToken, EmailConfirmationToken
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, settings
+from models.user import User, PasswordResetToken, EmailConfirmationToken, Challenge, Annotation, Image, UserStats
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, settings
 from utils.security import (
     hash_reset_token,
     send_reset_email,

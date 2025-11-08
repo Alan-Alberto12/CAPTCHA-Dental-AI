@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install deps using lockfile for deterministic installs
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
 # Copy the rest of the source (vite does HMR; compose will also bind-mount)
 COPY . .
