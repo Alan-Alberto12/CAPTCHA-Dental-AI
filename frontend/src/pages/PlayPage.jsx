@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMode } from "../modes/registry.js";
-import Header from "../components/Header";
+import { useNavigate } from "react-router-dom";
 
 /**
  * PlayPage — Step 1a: shell only (no registry, no data)
@@ -11,6 +11,7 @@ import Header from "../components/Header";
 export default function PlayPage() {
     const [modeId] = useState("tooth-select");
     const mode = useMemo(() => getMode(modeId), [modeId]);
+    const navigate = useNavigate();
 
     const [roundData, setRoundData] = useState(null);
     const [answerDraft, setAnswerDraft] = useState(null);
@@ -42,7 +43,6 @@ export default function PlayPage() {
 
     return (
         <div className="min-h-screen bg-[#98A1BC]">
-            <Header />
             <div className="mx-auto w-full max-w-4xl px-3 md:px-4 lg:px-8 pb-20 md:pb-6">
                 {/* Prompt Bar */}
                 <div className="mt-3 rounded-xl bg-[#525470] px-4 py-3 text-[#F5EEDC]">
