@@ -1,11 +1,21 @@
 import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
-export default function BottomTabs({ active = "dashboard", onChange = () => { } }) {
+export default function BottomTabs({ active, onChange }) {
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
+
     const items = [
-        { key: "dashboard", label: "Home", icon: HomeIcon },
-        { key: "play", label: "Play", icon: PlayIcon },
-        { key: "leaderboard", label: "Leaderboard", icon: TrophyIcon },
+        { key: "dashboard", label: "Home", icon: HomeIcon, path: "/dashboard" },
+        { key: "play", label: "Play", icon: PlayIcon, path: "/play" },
+        { key: "leaderboard", label: "Leaderboard", icon: TrophyIcon, path: "/leaderboard" },
     ];
+
+    const inferredActive = active || (items.find(i => pathname.startsWith(i.path))?.key ?? "dashboard");
+    const handleChange = onChange || ((key) => {
+        const item = items.find(i => i.key === key);
+        if (item) navigate(item.path);
+    });
 
     return (
         <nav
@@ -15,12 +25,12 @@ export default function BottomTabs({ active = "dashboard", onChange = () => { } 
         >
             <ul className="mx-auto flex h-14 max-w-3xl items-stretch justify-around px-2">
                 {items.map(({ key, label, icon: Icon }) => {
-                    const isActive = key === active;
+                    const isActive = key === inferredActive;
                     return (
                         <li key={key} className="flex-1">
                             <button
                                 type="button"
-                                onClick={() => onChange(key)}
+                                onClick={() => handleChange(key)}
                                 className="group flex h-full w-full flex-col items-center justify-center gap-0.5 outline-none hover:cursor-pointer"
                             >
                                 <span

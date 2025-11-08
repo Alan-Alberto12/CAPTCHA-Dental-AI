@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMode } from "../modes/registry.js";
-import Header from "../components/Header";
-import BottomTabs from "../components/BottomTab";
 import { useNavigate } from "react-router-dom";
 
 /**
@@ -45,7 +43,6 @@ export default function PlayPage() {
 
     return (
         <div className="min-h-screen bg-[#98A1BC]">
-            <Header />
             <div className="mx-auto w-full max-w-4xl px-3 md:px-4 lg:px-8 pb-20 md:pb-6">
                 {/* Prompt Bar */}
                 <div className="mt-3 rounded-xl bg-[#525470] px-4 py-3 text-[#F5EEDC]">
@@ -83,18 +80,6 @@ export default function PlayPage() {
                 </div>
             )}
             </div>
-            <BottomTabs
-                active="play"
-                onChange={(tab) => {
-                    navigate(
-                        tab === 'dashboard'
-                            ? '/dashboard'
-                            : tab === 'play'
-                            ? '/play'
-                            : '/leaderboard'
-                    );
-                }}
-            />
         </div>
     );
 }
