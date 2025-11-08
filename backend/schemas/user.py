@@ -105,31 +105,43 @@ class AdminUserRequest(BaseModel):
     email: EmailStr
 
 
-# annotation, image, challenge schemas
+# annotation, image, question, session schemas
 class ImageResponse(BaseModel):
     id: int
     filename: str
     image_url: str
-    question_type: str
-    question_text: str
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class ChallengeResponse(BaseModel):
+class QuestionResponse(BaseModel):
     id: int
-    image: ImageResponse
+    question_text: str
+    question_type: str
+    active: bool
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SessionResponse(BaseModel):
+    id: int
+    user_id: int
+    is_completed: bool
+    started_at: datetime
+    completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 
 class AnnotationCreate(BaseModel):
-    challenge_id: int
-    answer: str
+    session_id: int
+    question_id: int
+    selected_image_ids: list[int]  # List of image IDs the user selected
     time_spent: Optional[float] = None
 
 
@@ -137,8 +149,6 @@ class ImageImport(BaseModel):
     """Schema for importing a single image"""
     filename: str
     image_url: str
-    question_type: str
-    question_text: str
 
 
 class BulkImageImport(BaseModel):
@@ -148,11 +158,22 @@ class BulkImageImport(BaseModel):
 
 class AnnotationResponse(BaseModel):
     id: int
-    answer: str
+    session_id: int
+    question_id: int
+    selected_image_ids: list[int]  # Which images user selected
     is_correct: Optional[bool] = None
     time_spent: Optional[float] = None
     created_at: datetime
-    challenge: ChallengeResponse
+
+    class Config:
+        from_attributes = True
+
+
+# Kept for backwards compatibility (will be removed later)
+class ChallengeResponse(BaseModel):
+    id: int
+    image: ImageResponse
+    created_at: datetime
 
     class Config:
         from_attributes = True

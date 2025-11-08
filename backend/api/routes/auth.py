@@ -8,7 +8,7 @@ import secrets
 import hashlib
 
 from services.database import get_db
-from models.user import User, PasswordResetToken, EmailConfirmationToken, Challenge, Annotation, Image, UserStats
+from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
 from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, settings
 from utils.security import (
     hash_reset_token,
@@ -309,32 +309,144 @@ def demote_user(
     return target_user
 
 
-@router.get("/challenges/next", response_model=ChallengeResponse)
-def get_next_challenge(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    challenge = db.query(Challenge).filter(Challenge.active == True).order_by(func.random()).first()
-    if not challenge:
-        raise HTTPException(status_code=404, detail="No challenges available")
-    return challenge
+@router.get("/sessions/next")
+def get_next_session(
+    num_images: int = 4,
+    num_questions: int = 5,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new annotation session with random images and questions
+
+    Args:
+        num_images: Number of images to show in the session (default: 4)
+        num_questions: Number of questions to include in the session (default: 5)
+    """
+
+    # Get random images
+    images = db.query(Image).order_by(func.random()).limit(num_images).all()
+    if len(images) < num_images:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Not enough images available (need {num_images}, found {len(images)})"
+        )
+
+    # Get random active questions
+    questions = db.query(Question).filter(Question.active == True).order_by(func.random()).limit(num_questions).all()
+    if len(questions) < num_questions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Not enough questions available (need {num_questions}, found {len(questions)})"
+        )
+
+    # Create session
+    session = AnnotationSession(
+        user_id=current_user.id,
+    )
+    db.add(session)
+    db.flush()  # Get session ID without committing
+
+    # Add images to session
+    for order, image in enumerate(images, start=1):
+        session_image = SessionImage(
+            session_id=session.id,
+            image_id=image.id,
+            image_order=order
+        )
+        db.add(session_image)
+
+    # Add questions to session
+    for order, question in enumerate(questions, start=1):
+        session_question = SessionQuestion(
+            session_id=session.id,
+            question_id=question.id,
+            question_order=order
+        )
+        db.add(session_question)
+
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session.id,
+        "images": [
+            {
+                "id": img.id,
+                "filename": img.filename,
+                "image_url": img.image_url,
+                "order": order
+            }
+            for order, img in enumerate(images, start=1)
+        ],
+        "questions": [
+            {
+                "id": q.id,
+                "question_text": q.question_text,
+                "question_type": q.question_type,
+                "order": order
+            }
+            for order, q in enumerate(questions, start=1)
+        ],
+        "started_at": session.started_at
+    }
 
 
-@router.post("/annotations", response_model=AnnotationResponse, status_code=201)
+@router.post("/annotations", status_code=201)
 def submit_annotation(
     payload: AnnotationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    challenge = db.query(Challenge).filter(Challenge.id == payload.challenge_id).first()
-    if not challenge:
-        raise HTTPException(status_code=404, detail="Challenge not found")
+    """Submit an annotation - user's selected images for a question"""
 
+    # Verify session exists and belongs to current user
+    session = db.query(AnnotationSession).filter(AnnotationSession.id == payload.session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This session doesn't belong to you")
+
+    # Verify question is part of this session
+    session_question = db.query(SessionQuestion).filter(
+        SessionQuestion.session_id == payload.session_id,
+        SessionQuestion.question_id == payload.question_id
+    ).first()
+
+    if not session_question:
+        raise HTTPException(status_code=400, detail="Question is not part of this session")
+
+    # Verify selected images are part of this session
+    session_image_ids = db.query(SessionImage.image_id).filter(
+        SessionImage.session_id == payload.session_id
+    ).all()
+    session_image_ids = [img_id[0] for img_id in session_image_ids]
+
+    for image_id in payload.selected_image_ids:
+        if image_id not in session_image_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Image {image_id} is not part of this session"
+            )
+
+    # Create annotation
     annotation = Annotation(
-        user_id=current_user.id,
-        challenge_id=payload.challenge_id,
-        answer=payload.answer,
+        session_id=payload.session_id,
+        question_id=payload.question_id,
         time_spent=payload.time_spent,
         is_correct=None  # to be validated later by AI/admin
     )
     db.add(annotation)
+    db.flush()  # Get annotation ID
+
+    # Store selected images
+    for image_id in payload.selected_image_ids:
+        annotation_image = AnnotationImage(
+            annotation_id=annotation.id,
+            image_id=image_id
+        )
+        db.add(annotation_image)
+
     db.commit()
     db.refresh(annotation)
 
@@ -347,14 +459,28 @@ def submit_annotation(
         stats.total_annotations += 1
     db.commit()
 
-    return annotation
+    return {
+        "id": annotation.id,
+        "session_id": annotation.session_id,
+        "question_id": annotation.question_id,
+        "selected_image_ids": payload.selected_image_ids,
+        "is_correct": annotation.is_correct,
+        "time_spent": annotation.time_spent,
+        "created_at": annotation.created_at
+    }
 
 
 @router.get("/annotations/me", response_model=list[AnnotationResponse])
 def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get all annotations for the current user's sessions"""
+    # Get all sessions for this user
+    user_sessions = db.query(AnnotationSession).filter(AnnotationSession.user_id == current_user.id).all()
+    session_ids = [s.id for s in user_sessions]
+
+    # Get all annotations from those sessions
     annotations = (
         db.query(Annotation)
-        .filter(Annotation.user_id == current_user.id)
+        .filter(Annotation.session_id.in_(session_ids))
         .order_by(Annotation.created_at.desc())
         .all()
     )
@@ -367,7 +493,7 @@ def import_images(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Import multiple images and automatically create challenges (admin only)"""
+    """Import multiple images (admin only)"""
 
     # Check admin
     if not current_user.is_admin:
@@ -377,7 +503,6 @@ def import_images(
         )
 
     imported_count = 0
-    created_challenges = 0
 
     for image_data in payload.images:
         # Check if image already exists
@@ -388,30 +513,70 @@ def import_images(
         # Create image
         image = Image(
             filename=image_data.filename,
-            image_url=image_data.image_url,
-            question_type=image_data.question_type,
-            question_text=image_data.question_text
+            image_url=image_data.image_url
         )
         db.add(image)
-        db.flush()  # Get the image ID
-
-        # Automatically create a challenge for this image
-        challenge = Challenge(
-            image_id=image.id,
-            active=True
-        )
-        db.add(challenge)
-
         imported_count += 1
-        created_challenges += 1
 
     db.commit()
 
     return {
         "message": "Images imported successfully",
-        "images_imported": imported_count,
-        "challenges_created": created_challenges
+        "images_imported": imported_count
     }
+
+
+@router.post("/admin/import-questions", status_code=201)
+def import_questions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Import questions (admin only)"""
+
+    # Check admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can import questions"
+        )
+
+    # Define the questions to import
+    questions_data = [
+        {"question_text": "What tooth number is this?", "question_type": "tooth_number"},
+        {"question_text": "Is there a cavity present?", "question_type": "cavity_detection"},
+        {"question_text": "What is the condition of the gums?", "question_type": "gum_condition"},
+        {"question_text": "Is there any tooth decay?", "question_type": "decay_detection"},
+        {"question_text": "What is the overall dental health?", "question_type": "overall_health"},
+    ]
+
+    imported_count = 0
+
+    for q_data in questions_data:
+        # Check if question already exists (by text and type)
+        existing = db.query(Question).filter(
+            Question.question_text == q_data["question_text"],
+            Question.question_type == q_data["question_type"]
+        ).first()
+        if existing:
+            continue  # Skip duplicates
+
+        # Create question
+        question = Question(
+            question_text=q_data["question_text"],
+            question_type=q_data["question_type"],
+            active=True
+        )
+        db.add(question)
+        imported_count += 1
+
+    db.commit()
+
+    return {
+        "message": "Questions imported successfully",
+        "questions_imported": imported_count
+    }
+
+
 @router.put("/editUser", response_model=UserResponse)
 def update_user(
     user_update: UserUpdate,
