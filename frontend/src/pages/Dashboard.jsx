@@ -1,7 +1,10 @@
 import React from 'react';
 import Header from '../components/Header';
+import BottomTabs from '../components/BottomTab';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   // Mock data for cases
   const cases = [
     { id: 1, title: 'Case 1 Title', status: 'completed', statusLabel: 'C' },
@@ -31,7 +34,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#98A1BC]">
+    <div className="min-h-screen bg-[#98A1BC] pb-20 md:pb-6">
       <Header />
     
 
@@ -93,6 +96,19 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      <BottomTabs
+        active="dashboard"
+        onChange={(tab) => {
+          navigate(
+            tab === 'dashboard'
+              ? '/dashboard'
+              : tab === 'play'
+              ? '/play'
+              : '/leaderboard'
+          );
+        }}
+      />
     </div>
   );
 }

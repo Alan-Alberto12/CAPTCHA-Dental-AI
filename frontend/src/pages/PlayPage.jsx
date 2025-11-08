@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getMode } from "../modes/registry.js";
 import Header from "../components/Header";
+import BottomTabs from "../components/BottomTab";
+import { useNavigate } from "react-router-dom";
 
 /**
  * PlayPage — Step 1a: shell only (no registry, no data)
@@ -11,6 +13,7 @@ import Header from "../components/Header";
 export default function PlayPage() {
     const [modeId] = useState("tooth-select");
     const mode = useMemo(() => getMode(modeId), [modeId]);
+    const navigate = useNavigate();
 
     const [roundData, setRoundData] = useState(null);
     const [answerDraft, setAnswerDraft] = useState(null);
@@ -80,6 +83,18 @@ export default function PlayPage() {
                 </div>
             )}
             </div>
+            <BottomTabs
+                active="play"
+                onChange={(tab) => {
+                    navigate(
+                        tab === 'dashboard'
+                            ? '/dashboard'
+                            : tab === 'play'
+                            ? '/play'
+                            : '/leaderboard'
+                    );
+                }}
+            />
         </div>
     );
 }
