@@ -1,27 +1,28 @@
 # FastAPI core
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+from datetime import timedelta, datetime, timezone
+import secrets
+import hashlib
 
-# Database & ORM
-from sqlalchemy.orm import Session; from sqlalchemy.sql import func; from services.database import get_db
-
-# Utilities & stdlib
-from datetime import datetime, timedelta, timezone; import secrets, hashlib, random
-
-# Models
-from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats
-
-# Schemas
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport, settings
-
-# Security utils
-from utils.security import hash_reset_token, send_reset_email, verify_password, get_password_hash, create_access_token, decode_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, send_confirmation_email
-
+from services.database import get_db
+from models.user import User, PasswordResetToken, EmailConfirmationToken
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, settings
+from utils.security import (
+    hash_reset_token,
+    send_reset_email,
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    decode_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    send_confirmation_email
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
-
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     """Get current authenticated user from JWT token."""
@@ -70,7 +71,8 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
     new_user = User(
         email=user_data.email,
         username=user_data.username,
-        full_name=user_data.full_name,
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
         hashed_password=hashed_password,
         is_verified=False
     )
@@ -91,7 +93,7 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
     db.add(confirmation)
     db.commit()
 
-    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/confirm-email?token={raw_token}"
+    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/login?token={raw_token}"
     bg.add_task(send_confirmation_email, to_email=new_user.email, confirm_link=confirm_link)
 
     return new_user
@@ -117,6 +119,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Inactive user"
         )
 
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email before logging in. Check your inbox for the confirmation link."
+        )
+
     # Create access token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -126,7 +134,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
+def get_user(current_user: User = Depends(get_current_user)):
     """Get current user information."""
     return current_user
 
@@ -149,6 +157,7 @@ def forgot_password(payload : ForgotPasswordRequest, bg : BackgroundTasks, db : 
 
         return {"message": "If that email exists, a password reset link has been sent."}
     
+
 @router.post("/reset-password", status_code = 200)
 def reset_password(payload : ResetPasswordRequest, db: Session = Depends(get_db)):
     token_hash = hash_reset_token(payload.token)
@@ -204,7 +213,7 @@ def send_confirmation_email_endpoint(
     db.add(confirmation)
     db.commit()
 
-    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/confirm-email?token={raw_token}"
+    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/login?token={raw_token}"
     bg.add_task(send_confirmation_email, to_email=current_user.email, confirm_link=confirm_link)
 
     return {"message": "Confirmation email sent."}
@@ -217,7 +226,7 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
     token_row = db.query(EmailConfirmationToken).filter(EmailConfirmationToken.token_hash == token_hash).first()
 
     if not token_row or token_row.expires < datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired token")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid/expired token")
 
     user = db.query(User).filter(User.id == token_row.user_id).first()
     if not user:
@@ -402,3 +411,39 @@ def import_images(
         "images_imported": imported_count,
         "challenges_created": created_challenges
     }
+@router.put("/editUser", response_model=UserResponse)
+def update_user(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user information."""
+    # Check if email or username is being changed and already exists
+    if user_update.email and user_update.email != current_user.email:
+        existing_user = db.query(User).filter(User.email == user_update.email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        current_user.email = user_update.email
+
+    if user_update.username and user_update.username != current_user.username:
+        existing_user = db.query(User).filter(User.username == user_update.username).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        current_user.username = user_update.username
+
+    if user_update.first_name is not None:
+        current_user.first_name = user_update.first_name
+
+    if user_update.last_name is not None:
+        current_user.last_name = user_update.last_name
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
