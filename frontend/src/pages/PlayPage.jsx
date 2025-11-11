@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 /**
@@ -26,9 +26,15 @@ export default function PlayPage() {
     // Session completion
     const [sessionCompleted, setSessionCompleted] = useState(false);
 
+    // Prevent duplicate session fetches (React StrictMode protection)
+    const hasFetchedSession = useRef(false);
+
     // Fetch new session on mount
     useEffect(() => {
-        fetchNewSession();
+        if (!hasFetchedSession.current) {
+            hasFetchedSession.current = true;
+            fetchNewSession();
+        }
     }, []);
 
     // Start timer when question changes
@@ -38,7 +44,7 @@ export default function PlayPage() {
         }
     }, [currentQuestionIndex, session]);
 
-    const fetchNewSession = async () => {
+    const fetchNewSession = async (forceNew = false) => {
         setIsLoading(true);
         setError(null);
         setMessage(null);
@@ -50,7 +56,11 @@ export default function PlayPage() {
                 return;
             }
 
-            const response = await fetch("http://127.0.0.1:8000/auth/sessions/next", {
+            const url = forceNew
+                ? "http://127.0.0.1:8000/auth/sessions/next?force_new=true"
+                : "http://127.0.0.1:8000/auth/sessions/next";
+
+            const response = await fetch(url, {
                 method: "GET",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -60,11 +70,32 @@ export default function PlayPage() {
             if (response.ok) {
                 const data = await response.json();
                 console.log("Session loaded:", data);
+
+                // Check if this is a resumed session
+                if (data.resumed) {
+                    setMessage("📍 Resuming your previous session...");
+                    // Clear message after 3 seconds
+                    setTimeout(() => setMessage(null), 3000);
+                }
+
                 setSession(data);
-                setCurrentQuestionIndex(0);
+
+                // Initialize answered questions from backend
+                const answeredSet = new Set(data.answered_question_ids || []);
+                setAnsweredQuestions(answeredSet);
+
+                // Find first unanswered question
+                let firstUnansweredIndex = 0;
+                for (let i = 0; i < data.questions.length; i++) {
+                    if (!answeredSet.has(data.questions[i].id)) {
+                        firstUnansweredIndex = i;
+                        break;
+                    }
+                }
+
+                setCurrentQuestionIndex(firstUnansweredIndex);
                 setSelectedImages([]);
-                setAnsweredQuestions(new Set());
-                setSessionCompleted(false);
+                setSessionCompleted(answeredSet.size === data.questions.length);
                 setQuestionStartTime(Date.now());
             } else {
                 const errorData = await response.json();
@@ -193,7 +224,8 @@ export default function PlayPage() {
     };
 
     const handleNewSession = () => {
-        fetchNewSession();
+        hasFetchedSession.current = false;
+        fetchNewSession(true); // Force new session
     };
 
     // Loading state
@@ -355,9 +387,14 @@ export default function PlayPage() {
                         <div className="mb-6 rounded-xl bg-[#525470] px-6 py-8 text-center">
                             <div className="text-6xl mb-4">🎉</div>
                             <h2 className="text-2xl font-bold text-[#F5EEDC] mb-2">Session Complete!</h2>
-                            <p className="text-[#F5EEDC] opacity-80">
+                            <p className="text-[#F5EEDC] opacity-80 mb-4">
                                 You answered all {session.questions.length} questions.
                             </p>
+                            <div className="bg-white/10 rounded-lg px-4 py-3">
+                                <p className="text-[#F5EEDC] text-sm">
+                                    💡 Click "Start New Session" to begin a fresh session. Your progress is saved!
+                                </p>
+                            </div>
                         </div>
                         <button
                             onClick={handleNewSession}

@@ -309,18 +309,135 @@ def demote_user(
     return target_user
 
 
-@router.get("/sessions/next")
-def get_next_session(
+@router.get("/sessions/current")
+def get_current_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new annotation session with random images and questions
+    """Get the user's current incomplete session, or return null if none exists"""
 
-    Sessions are created with:
-    - ALWAYS 4 images
-    - Random 1-5 questions
+    # Find the most recent incomplete session for this user
+    session = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.is_completed == False
+    ).order_by(AnnotationSession.started_at.desc()).first()
+
+    if not session:
+        return None
+
+    # Get session images (ordered)
+    session_images = db.query(SessionImage).filter(
+        SessionImage.session_id == session.id
+    ).order_by(SessionImage.image_order).all()
+
+    images = []
+    for si in session_images:
+        image = db.query(Image).filter(Image.id == si.image_id).first()
+        if image:
+            images.append({
+                "id": image.id,
+                "filename": image.filename,
+                "image_url": image.image_url,
+                "order": si.image_order
+            })
+
+    # Get session questions (ordered)
+    session_questions = db.query(SessionQuestion).filter(
+        SessionQuestion.session_id == session.id
+    ).order_by(SessionQuestion.question_order).all()
+
+    questions = []
+    for sq in session_questions:
+        question = db.query(Question).filter(Question.id == sq.question_id).first()
+        if question:
+            questions.append({
+                "id": question.id,
+                "question_text": question.question_text,
+                "question_type": question.question_type,
+                "order": sq.question_order
+            })
+
+    # Get already answered question IDs
+    answered_annotations = db.query(Annotation.question_id).filter(
+        Annotation.session_id == session.id
+    ).all()
+    answered_question_ids = [a[0] for a in answered_annotations]
+
+    return {
+        "session_id": session.id,
+        "images": images,
+        "questions": questions,
+        "answered_question_ids": answered_question_ids,
+        "started_at": session.started_at
+    }
+
+
+@router.get("/sessions/next")
+def get_next_session(
+    force_new: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get or create an annotation session
+
+    - If user has incomplete session and force_new=False: return existing session
+    - Otherwise: create new session with 4 images and 1-5 random questions
     """
     import random
+
+    # Check for existing incomplete session (unless forced to create new)
+    if not force_new:
+        existing_session = db.query(AnnotationSession).filter(
+            AnnotationSession.user_id == current_user.id,
+            AnnotationSession.is_completed == False
+        ).order_by(AnnotationSession.started_at.desc()).first()
+
+        if existing_session:
+            # Return existing session
+            session_images = db.query(SessionImage).filter(
+                SessionImage.session_id == existing_session.id
+            ).order_by(SessionImage.image_order).all()
+
+            images = []
+            for si in session_images:
+                image = db.query(Image).filter(Image.id == si.image_id).first()
+                if image:
+                    images.append({
+                        "id": image.id,
+                        "filename": image.filename,
+                        "image_url": image.image_url,
+                        "order": si.image_order
+                    })
+
+            session_questions = db.query(SessionQuestion).filter(
+                SessionQuestion.session_id == existing_session.id
+            ).order_by(SessionQuestion.question_order).all()
+
+            questions = []
+            for sq in session_questions:
+                question = db.query(Question).filter(Question.id == sq.question_id).first()
+                if question:
+                    questions.append({
+                        "id": question.id,
+                        "question_text": question.question_text,
+                        "question_type": question.question_type,
+                        "order": sq.question_order
+                    })
+
+            # Get already answered question IDs
+            answered_annotations = db.query(Annotation.question_id).filter(
+                Annotation.session_id == existing_session.id
+            ).all()
+            answered_question_ids = [a[0] for a in answered_annotations]
+
+            return {
+                "session_id": existing_session.id,
+                "images": images,
+                "questions": questions,
+                "answered_question_ids": answered_question_ids,
+                "started_at": existing_session.started_at,
+                "resumed": True
+            }
 
     # Always use 4 images
     num_images = 4
@@ -392,7 +509,9 @@ def get_next_session(
             }
             for order, q in enumerate(questions, start=1)
         ],
-        "started_at": session.started_at
+        "answered_question_ids": [],
+        "started_at": session.started_at,
+        "resumed": False
     }
 
 
