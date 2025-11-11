@@ -7,10 +7,18 @@ from typing import Optional
 class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
-    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=8)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -65,7 +73,7 @@ class ResetPasswordRequest(BaseModel):
 class Settings(BaseSettings):
     # --- app / db ---
     DATABASE_URL: str = "postgresql://captcha_user:captcha_password@db:5432/captcha_dental_db"
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # --- auth/JWT ---
     SECRET_KEY: str = "your-secret-key"

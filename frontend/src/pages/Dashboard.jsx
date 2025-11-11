@@ -1,8 +1,6 @@
 import React from 'react';
 
-export default function DentalDashboard() {
-  const currentPage = 'dashboard'; // Track which page we're on
-
+export default function Dashboard() {
   // Mock data for cases
   const cases = [
     { id: 1, title: 'Case 1 Title', status: 'completed', statusLabel: 'C' },
@@ -32,45 +30,15 @@ export default function DentalDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#98A1BC]">
-      {/* Top Navigation */}
-      <nav className="bg-[#555879] text-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-center gap-12 py-4">
-            <a
-              href="#"
-              className={`text-xl text-[#F4EBD3] font-semibold hover:text-gray-300 px-4 py-2 rounded-lg transition-all ${
-                currentPage === 'dashboard' ? 'border-2 border-[#F4EBD3] bg-[#555879]/50' : 'hover:border-2 hover:border-[#F4EBD3]/50'
-              }`}
-            >
-              Dashboard
-            </a>
-            <a
-              href="#"
-              className={`text-xl text-[#F4EBD3] font-semibold hover:text-gray-300 px-4 py-2 rounded-lg transition-all ${
-                currentPage === 'play' ? 'border-2 border-[#F4EBD3] bg-[#555879]/50' : 'hover:border-2 hover:border-[#F4EBD3]/50'
-              }`}
-            >
-              Play
-            </a>
-            <a
-              href="#"
-              className={`text-xl text-[#F4EBD3] font-semibold hover:text-gray-300 px-4 py-2 rounded-lg transition-all ${
-                currentPage === 'leaderboard' ? 'border-2 border-[#F4EBD3] bg-[#555879]/50' : 'hover:border-2 hover:border-[#F4EBD3]/50'
-              }`}
-            >
-              Leaderboard
-            </a>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-[#98A1BC] pb-20 md:pb-6">
+    
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-4 gap-6 mb-8">
           {stats.map((stat, idx) => (
-            <div key={idx} className="bg-yellow-100 rounded-3xl p-8 text-center shadow-md">
+            <div key={idx} className="bg-[#F4EBD3] rounded-3xl p-8 text-center shadow-md">
               <h3 className="text-xl font-bold mb-4">{stat.label}</h3>
               <p className="text-6xl font-bold">{stat.value}</p>
             </div>
@@ -79,14 +47,14 @@ export default function DentalDashboard() {
 
         {/* Search and Filter */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 bg-yellow-100 rounded-2xl px-6 py-4 shadow-md">
+          <div className="flex-1 bg-[#F4EBD3] rounded-2xl px-6 py-4 shadow-md">
             <input
               type="text"
               placeholder="Search cases..."
               className="w-full bg-transparent text-lg focus:outline-none placeholder-gray-600"
             />
           </div>
-          <button className="bg-white rounded-2xl px-8 py-4 shadow-md flex items-center gap-2 font-semibold text-lg hover:bg-gray-50">
+          <button className="bg-[#F4EBD3] rounded-2xl px-8 py-4 shadow-md flex items-center gap-2 font-semibold text-lg hover:bg-[#DED3C4]">
             <span className="text-xl">⏷</span>
             Filter
           </button>
@@ -95,7 +63,7 @@ export default function DentalDashboard() {
         {/* Cases Grid */}
         <div className="grid grid-cols-4 gap-6">
           {cases.map((case_) => (
-            <div key={case_.id} className="bg-yellow-100 rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+            <div key={case_.id} className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-hidden hover:bg-[#DED3C4] transition-shadow">
               <div className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="font-bold text-lg">{case_.title}</h3>
