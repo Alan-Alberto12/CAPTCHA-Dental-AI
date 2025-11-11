@@ -1,5 +1,4 @@
 import React from 'react';
-import Header from '../components/Header';
 
 export default function Dashboard() {
   // Mock data for cases
@@ -31,8 +30,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#98A1BC]">
-      <Header />
+    <div className="min-h-screen bg-[#98A1BC] pb-20 md:pb-6">
     
 
       {/* Main Content */}

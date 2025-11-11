@@ -2,9 +2,12 @@
 import React from "react";
 import Header from "../../components/Header";
 import BottomTabs from "../../components/BottomTab";
+import { useNavigate } from "react-router-dom";
 
 
 export default function Dashboard() {
+    const navigate = useNavigate();
+
     return (
         <>
             <Header />
@@ -12,7 +15,13 @@ export default function Dashboard() {
                 <BottomTabs
                     active="dashboard"
                     onChange={(tab) => {
-                        console.log("Tab changed:", tab);
+                        navigate(
+                            tab === 'dashboard'
+                                ? '/dashboard'
+                                : tab === 'play'
+                                ? '/play'
+                                : '/leaderboard'
+                        );
                     }}
                 />
             </main>
