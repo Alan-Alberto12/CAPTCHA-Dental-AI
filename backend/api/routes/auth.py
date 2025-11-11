@@ -9,7 +9,7 @@ import hashlib
 
 from services.database import get_db
 from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, settings
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, settings
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -311,17 +311,22 @@ def demote_user(
 
 @router.get("/sessions/next")
 def get_next_session(
-    num_images: int = 4,
-    num_questions: int = 5,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new annotation session with random images and questions
 
-    Args:
-        num_images: Number of images to show in the session (default: 4)
-        num_questions: Number of questions to include in the session (default: 5)
+    Sessions are created with:
+    - ALWAYS 4 images
+    - Random 1-5 questions
     """
+    import random
+
+    # Always use 4 images
+    num_images = 4
+
+    # Randomly select 1-5 questions
+    num_questions = random.randint(1, 5)
 
     # Get random images
     images = db.query(Image).order_by(func.random()).limit(num_images).all()
@@ -407,6 +412,9 @@ def submit_annotation(
     if session.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="This session doesn't belong to you")
 
+    if session.is_completed:
+        raise HTTPException(status_code=400, detail="This session is already completed. You cannot submit more annotations.")
+
     # Verify question is part of this session
     session_question = db.query(SessionQuestion).filter(
         SessionQuestion.session_id == payload.session_id,
@@ -415,6 +423,15 @@ def submit_annotation(
 
     if not session_question:
         raise HTTPException(status_code=400, detail="Question is not part of this session")
+
+    # Check if this question has already been answered in this session
+    existing_annotation = db.query(Annotation).filter(
+        Annotation.session_id == payload.session_id,
+        Annotation.question_id == payload.question_id
+    ).first()
+
+    if existing_annotation:
+        raise HTTPException(status_code=400, detail="You have already answered this question in this session.")
 
     # Verify selected images are part of this session
     session_image_ids = db.query(SessionImage.image_id).filter(
@@ -449,6 +466,21 @@ def submit_annotation(
 
     db.commit()
     db.refresh(annotation)
+
+    # Check if all questions in this session have been answered
+    total_questions = db.query(SessionQuestion).filter(
+        SessionQuestion.session_id == payload.session_id
+    ).count()
+
+    total_annotations = db.query(Annotation).filter(
+        Annotation.session_id == payload.session_id
+    ).count()
+
+    # Mark session as completed if all questions answered
+    if total_annotations >= total_questions:
+        session.is_completed = True
+        session.completed_at = datetime.now(timezone.utc)
+        db.add(session)
 
     # Update stats
     stats = db.query(UserStats).filter(UserStats.user_id == current_user.id).first()
@@ -528,6 +560,7 @@ def import_images(
 
 @router.post("/admin/import-questions", status_code=201)
 def import_questions(
+    payload: BulkQuestionImport,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -540,30 +573,21 @@ def import_questions(
             detail="Only administrators can import questions"
         )
 
-    # Define the questions to import
-    questions_data = [
-        {"question_text": "What tooth number is this?", "question_type": "tooth_number"},
-        {"question_text": "Is there a cavity present?", "question_type": "cavity_detection"},
-        {"question_text": "What is the condition of the gums?", "question_type": "gum_condition"},
-        {"question_text": "Is there any tooth decay?", "question_type": "decay_detection"},
-        {"question_text": "What is the overall dental health?", "question_type": "overall_health"},
-    ]
-
     imported_count = 0
 
-    for q_data in questions_data:
+    for question_data in payload.questions:
         # Check if question already exists (by text and type)
         existing = db.query(Question).filter(
-            Question.question_text == q_data["question_text"],
-            Question.question_type == q_data["question_type"]
+            Question.question_text == question_data.question_text,
+            Question.question_type == question_data.question_type
         ).first()
         if existing:
             continue  # Skip duplicates
 
         # Create question
         question = Question(
-            question_text=q_data["question_text"],
-            question_type=q_data["question_type"],
+            question_text=question_data.question_text,
+            question_type=question_data.question_type,
             active=True
         )
         db.add(question)

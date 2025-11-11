@@ -168,7 +168,33 @@ password: password123
 
 **Authorization:** Bearer Token
 
-**No Body Required**
+**Body (JSON):**
+```json
+{
+  "questions": [
+    {
+      "question_text": "What tooth number is this?",
+      "question_type": "tooth_number"
+    },
+    {
+      "question_text": "Is there a cavity present?",
+      "question_type": "cavity_detection"
+    },
+    {
+      "question_text": "What is the condition of the gums?",
+      "question_type": "gum_condition"
+    },
+    {
+      "question_text": "Is there any tooth decay?",
+      "question_type": "decay_detection"
+    },
+    {
+      "question_text": "What is the overall dental health?",
+      "question_type": "overall_health"
+    }
+  ]
+}
+```
 
 **Expected Response (201):**
 ```json
@@ -182,13 +208,13 @@ password: password123
 
 ### Step 8: Get Next Session
 
-**Endpoint:** `GET /auth/sessions/next?num_images=4&num_questions=2`
+**Endpoint:** `GET /auth/sessions/next`
 
 **Authorization:** Bearer Token
 
-**Query Parameters:**
-- `num_images`: Number of images to show (default: 4)
-- `num_questions`: Number of questions to ask (default: 5)
+**No Parameters Required** - Sessions automatically have:
+- **4 images** (always)
+- **1-5 questions** (randomly selected each time)
 
 **Expected Response (200):**
 ```json
@@ -420,7 +446,28 @@ password: password123
 
 ---
 
-### 3. Try to access another user's session
+### 3. Answer the same question twice in a session
+
+**Body (trying to answer question 1 again):**
+```json
+{
+  "session_id": 1,
+  "question_id": 1,
+  "selected_image_ids": [2, 4],
+  "time_spent": 5.0
+}
+```
+
+**Expected Response (400):**
+```json
+{
+  "detail": "You have already answered this question in this session."
+}
+```
+
+---
+
+### 4. Try to access another user's session
 
 Create a second user, login, and try to submit annotation for session #1.
 

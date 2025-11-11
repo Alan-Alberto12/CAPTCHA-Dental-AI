@@ -156,6 +156,17 @@ class BulkImageImport(BaseModel):
     images: list[ImageImport]
 
 
+class QuestionImport(BaseModel):
+    """Schema for importing a single question"""
+    question_text: str
+    question_type: str
+
+
+class BulkQuestionImport(BaseModel):
+    """Schema for bulk importing questions"""
+    questions: list[QuestionImport]
+
+
 class AnnotationResponse(BaseModel):
     id: int
     session_id: int
