@@ -260,6 +260,10 @@ def update_user(
     if user_update.last_name is not None:
         current_user.last_name = user_update.last_name
 
+    # Update password if provided
+    if user_update.password is not None:
+        current_user.hashed_password = get_password_hash(user_update.password)
+
     db.commit()
     db.refresh(current_user)
 
