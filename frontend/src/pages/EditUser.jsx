@@ -13,7 +13,9 @@ export default function EditUser() {
     email: '',
     username: '',
     first_name: '',
-    last_name: ''
+    last_name: '',
+    password: '',
+    confirmPassword: ''
   });
 
   // Fetch current user data
@@ -76,14 +78,36 @@ export default function EditUser() {
       return;
     }
 
+    // Validate password matching if password is being changed
+    if (formData.password && formData.password.trim() !== '') {
+      if (formData.password !== formData.confirmPassword) {
+        setError('Passwords do not match');
+        setUpdating(false);
+        return;
+      }
+    }
+
     try {
+      // Only send fields that have values (don't send empty password)
+      const updateData = {
+        email: formData.email,
+        username: formData.username,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+      };
+
+      // Only include password if it's not empty
+      if (formData.password && formData.password.trim() !== '') {
+        updateData.password = formData.password;
+      }
+
       const response = await fetch('http://127.0.0.1:8000/auth/editUser', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(updateData),
       });
 
       if (response.ok) {
@@ -110,18 +134,6 @@ export default function EditUser() {
           <div className="flex flex-col gap-4 w-150 p-6 bg-[#555879] rounded-xl shadow-lg">
             <h2 className="text-center text-3xl font-bold text-[#F4EBD3]">Enter Information to Update</h2>
 
-            {error && (
-              <div className="p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="p-2 bg-green-100 border border-green-400 text-green-700 rounded text-sm">
-                {success}
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <input
                   type="email"
@@ -129,7 +141,7 @@ export default function EditUser() {
                   value={formData.email}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="Update Email"
+                  placeholder="New Email"
                   required
                 />
                 <input
@@ -138,7 +150,7 @@ export default function EditUser() {
                   value={formData.username}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="Update Username"
+                  placeholder="New Username"
                   required
                   minLength={3}
                   maxLength={50}
@@ -149,7 +161,7 @@ export default function EditUser() {
                   value={formData.first_name}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="Update First Name"
+                  placeholder="New First Name"
                 />
                 <input
                   type="text"
@@ -157,7 +169,25 @@ export default function EditUser() {
                   value={formData.last_name}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="Update Last Name"
+                  placeholder="New Last Name"
+                />
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
+                  placeholder="New Password (leave blank to keep current)"
+                  minLength={8}
+                />
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
+                  placeholder="Confirm New Password"
+                  minLength={8}
                 />
 
                 <button
@@ -167,6 +197,14 @@ export default function EditUser() {
                 >
                   {updating ? 'Saving...' : 'Save'}
                 </button>
+
+                {error && !success && (
+                  <p className="text-center text-red-400 font-semibold">{error}</p>
+                )}
+
+                {success && (
+                  <p className="text-center text-green-400 font-semibold">{success}</p>
+                )}
             </form>
           </div>
         </div>
