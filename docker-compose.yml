@@ -31,6 +31,9 @@ services:
       - ./backend:/app
     environment:
       - DATABASE_URL=postgresql://captcha_user:captcha_password@db:5432/captcha_dental_db
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - MAIL_FROM=no-reply@captcha.local
     depends_on:
       db:
         condition: service_healthy

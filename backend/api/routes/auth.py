@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone; import secrets, hashlib, ran
 from models.user import User, PasswordResetToken, EmailConfirmationToken, Image, Challenge, Annotation, UserStats, UserDataConsent
 
 # Schemas
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport, settings, ConsentSubmit, ConsentResponse, ConsentStatusResponse, ConsentHistoryResponse, ConsentHistoryItem
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, AdminUserRequest, AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport, UserUpdate, settings, ConsentSubmit, ConsentResponse, ConsentStatusResponse, ConsentHistoryResponse, ConsentHistoryItem
 
 # Security utils
 from utils.security import hash_reset_token, send_reset_email, verify_password, get_password_hash, create_access_token, decode_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, send_confirmation_email
