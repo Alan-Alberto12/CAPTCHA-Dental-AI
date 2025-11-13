@@ -10,7 +10,10 @@
       "Bash(curl:*)",
       "Bash(docker compose:*)",
       "Bash(docker exec:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(alembic revision:*)",
+      "Bash(docker ps:*)",
+      "Bash(./migrate.sh:*)"
     ],
     "deny": [],
     "ask": []
