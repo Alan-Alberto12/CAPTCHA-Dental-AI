@@ -8,6 +8,7 @@ import secrets
 import hashlib
 
 from services.database import get_db
+from services.s3_service import s3_service
 from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
 from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, settings
 from utils.security import (
@@ -638,13 +639,13 @@ def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depen
     return annotations
 
 
-@router.post("/admin/import-images", status_code=201)
-def import_images(
+@router.post("/admin/import-images-url", status_code=201)
+def import_images_url(
     payload: BulkImageImport,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Import multiple images (admin only)"""
+    """Import multiple images from URLs (admin only)"""
 
     # Check admin
     if not current_user.is_admin:
@@ -674,6 +675,95 @@ def import_images(
     return {
         "message": "Images imported successfully",
         "images_imported": imported_count
+    }
+
+
+@router.post("/admin/import-images-file", status_code=201)
+async def import_images_file(
+    files: list[UploadFile] = File(...),
+    folder_name: str = "images",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload single or multiple image files to S3 (admin only)"""
+
+    # Check admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can upload images"
+        )
+
+    # Validate file types
+    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+    results = []
+    failed = []
+
+    for file in files:
+        try:
+            # Validate content type
+            if file.content_type not in ALLOWED_TYPES:
+                failed.append({
+                    "filename": file.filename,
+                    "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP"
+                })
+                continue
+
+            # Read file data
+            file_data = await file.read()
+
+            # Validate file size
+            if len(file_data) > MAX_FILE_SIZE:
+                failed.append({
+                    "filename": file.filename,
+                    "error": f"File too large: {len(file_data)} bytes. Max: {MAX_FILE_SIZE} bytes"
+                })
+                continue
+
+            # Upload to S3
+            s3_url = s3_service.upload_file(
+                file_data=file_data,
+                filename=file.filename,
+                content_type=file.content_type,
+                folder=folder_name
+            )
+
+            if not s3_url:
+                failed.append({
+                    "filename": file.filename,
+                    "error": "Failed to upload to S3"
+                })
+                continue
+
+            # Save to database
+            image = Image(
+                filename=file.filename,
+                image_url=s3_url
+            )
+            db.add(image)
+            db.commit()
+            db.refresh(image)
+
+            results.append({
+                "id": image.id,
+                "filename": image.filename,
+                "image_url": image.image_url
+            })
+
+        except Exception as e:
+            failed.append({
+                "filename": file.filename,
+                "error": str(e)
+            })
+
+    return {
+        "uploaded": len(results),
+        "failed": len(failed),
+        "folder": folder_name,
+        "results": results,
+        "failures": failed
     }
 
 
