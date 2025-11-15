@@ -6,6 +6,9 @@ from sqlalchemy import func
 from datetime import timedelta, datetime, timezone
 import secrets
 import hashlib
+import zipfile
+import io
+import os
 
 from services.database import get_db
 from services.s3_service import s3_service
@@ -689,7 +692,15 @@ async def import_images_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload single or multiple image files to S3 (admin only)"""
+    """
+    Upload image files or zip files containing images to S3 (admin only)
+
+    Supports:
+    - Individual image files (JPEG, PNG, WEBP)
+    - Multiple image files at once
+    - Zip files containing images (automatically extracted)
+    - Mix of regular files and zip files
+    """
 
     # Check admin
     if not current_user.is_admin:
@@ -699,62 +710,184 @@ async def import_images_file(
         )
 
     # Validate file types
-    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+    ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
     results = []
     failed = []
+    skipped = []
 
     for file in files:
         try:
-            # Validate content type
-            if file.content_type not in ALLOWED_TYPES:
-                failed.append({
-                    "filename": file.filename,
-                    "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP"
+            # Check if this is a zip file
+            is_zip = file.filename.endswith('.zip') or file.content_type == 'application/zip'
+
+            if is_zip:
+                # Handle zip file - extract and upload all images
+                zip_data = await file.read()
+
+                try:
+                    zip_file = zipfile.ZipFile(io.BytesIO(zip_data))
+                except zipfile.BadZipFile:
+                    failed.append({
+                        "filename": file.filename,
+                        "error": "Invalid zip file"
+                    })
+                    continue
+
+                # Process each file in the zip
+                file_list = zip_file.namelist()
+
+                for file_path in file_list:
+                    # Skip directories and hidden files
+                    if file_path.endswith('/') or file_path.startswith('__MACOSX') or '/.DS_Store' in file_path:
+                        continue
+
+                    # Get file extension
+                    file_ext = '.' + file_path.lower().split('.')[-1] if '.' in file_path else ''
+
+                    # Skip non-image files
+                    if file_ext not in ALLOWED_EXTENSIONS:
+                        skipped.append({
+                            "filename": f"{file.filename}:{file_path}",
+                            "reason": f"Not an image file (extension: {file_ext})"
+                        })
+                        continue
+
+                    try:
+                        # Extract file data
+                        image_data = zip_file.read(file_path)
+
+                        # Validate file size
+                        if len(image_data) > MAX_FILE_SIZE:
+                            failed.append({
+                                "filename": f"{file.filename}:{file_path}",
+                                "error": f"File too large: {len(image_data)} bytes. Max: {MAX_FILE_SIZE} bytes"
+                            })
+                            continue
+
+                        # Determine content type from extension
+                        content_type_map = {
+                            '.jpg': 'image/jpeg',
+                            '.jpeg': 'image/jpeg',
+                            '.png': 'image/png',
+                            '.webp': 'image/webp'
+                        }
+                        content_type = content_type_map.get(file_ext, 'image/jpeg')
+
+                        # Get just the filename (no folder path)
+                        clean_filename = os.path.basename(file_path)
+
+                        # Check if image already exists
+                        existing = db.query(Image).filter(Image.filename == clean_filename).first()
+                        if existing:
+                            skipped.append({
+                                "filename": f"{file.filename}:{file_path}",
+                                "reason": "Image already exists in database"
+                            })
+                            continue
+
+                        # Upload to S3
+                        s3_url = s3_service.upload_file(
+                            file_data=image_data,
+                            filename=clean_filename,
+                            content_type=content_type,
+                            folder=folder_name
+                        )
+
+                        if not s3_url:
+                            failed.append({
+                                "filename": f"{file.filename}:{file_path}",
+                                "error": "Failed to upload to S3"
+                            })
+                            continue
+
+                        # Save to database
+                        image = Image(
+                            filename=clean_filename,
+                            image_url=s3_url
+                        )
+                        db.add(image)
+                        db.commit()
+                        db.refresh(image)
+
+                        results.append({
+                            "id": image.id,
+                            "filename": image.filename,
+                            "image_url": image.image_url,
+                            "source": f"zip:{file.filename}"
+                        })
+
+                    except Exception as e:
+                        failed.append({
+                            "filename": f"{file.filename}:{file_path}",
+                            "error": str(e)
+                        })
+
+                # Close zip file
+                zip_file.close()
+
+            else:
+                # Handle regular image file
+                # Validate content type
+                if file.content_type not in ALLOWED_IMAGE_TYPES:
+                    failed.append({
+                        "filename": file.filename,
+                        "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, or ZIP"
+                    })
+                    continue
+
+                # Read file data
+                file_data = await file.read()
+
+                # Validate file size
+                if len(file_data) > MAX_FILE_SIZE:
+                    failed.append({
+                        "filename": file.filename,
+                        "error": f"File too large: {len(file_data)} bytes. Max: {MAX_FILE_SIZE} bytes"
+                    })
+                    continue
+
+                # Check if image already exists
+                existing = db.query(Image).filter(Image.filename == file.filename).first()
+                if existing:
+                    skipped.append({
+                        "filename": file.filename,
+                        "reason": "Image already exists in database"
+                    })
+                    continue
+
+                # Upload to S3
+                s3_url = s3_service.upload_file(
+                    file_data=file_data,
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    folder=folder_name
+                )
+
+                if not s3_url:
+                    failed.append({
+                        "filename": file.filename,
+                        "error": "Failed to upload to S3"
+                    })
+                    continue
+
+                # Save to database
+                image = Image(
+                    filename=file.filename,
+                    image_url=s3_url
+                )
+                db.add(image)
+                db.commit()
+                db.refresh(image)
+
+                results.append({
+                    "id": image.id,
+                    "filename": image.filename,
+                    "image_url": image.image_url,
+                    "source": "direct"
                 })
-                continue
-
-            # Read file data
-            file_data = await file.read()
-
-            # Validate file size
-            if len(file_data) > MAX_FILE_SIZE:
-                failed.append({
-                    "filename": file.filename,
-                    "error": f"File too large: {len(file_data)} bytes. Max: {MAX_FILE_SIZE} bytes"
-                })
-                continue
-
-            # Upload to S3
-            s3_url = s3_service.upload_file(
-                file_data=file_data,
-                filename=file.filename,
-                content_type=file.content_type,
-                folder=folder_name
-            )
-
-            if not s3_url:
-                failed.append({
-                    "filename": file.filename,
-                    "error": "Failed to upload to S3"
-                })
-                continue
-
-            # Save to database
-            image = Image(
-                filename=file.filename,
-                image_url=s3_url
-            )
-            db.add(image)
-            db.commit()
-            db.refresh(image)
-
-            results.append({
-                "id": image.id,
-                "filename": image.filename,
-                "image_url": image.image_url
-            })
 
         except Exception as e:
             failed.append({
@@ -765,9 +898,11 @@ async def import_images_file(
     return {
         "uploaded": len(results),
         "failed": len(failed),
+        "skipped": len(skipped),
         "folder": folder_name,
         "results": results,
-        "failures": failed
+        "failures": failed,
+        "skipped_files": skipped
     }
 
 
