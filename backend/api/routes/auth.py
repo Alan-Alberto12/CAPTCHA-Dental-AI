@@ -335,10 +335,12 @@ def get_current_session(
     for si in session_images:
         image = db.query(Image).filter(Image.id == si.image_id).first()
         if image:
+            # Generate presigned URL for private S3 bucket access (valid for 1 hour)
+            presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
             images.append({
                 "id": image.id,
                 "filename": image.filename,
-                "image_url": image.image_url,
+                "image_url": presigned_url if presigned_url else image.image_url,
                 "order": si.image_order
             })
 
@@ -403,10 +405,12 @@ def get_next_session(
             for si in session_images:
                 image = db.query(Image).filter(Image.id == si.image_id).first()
                 if image:
+                    # Generate presigned URL for private S3 bucket access (valid for 1 hour)
+                    presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
                     images.append({
                         "id": image.id,
                         "filename": image.filename,
-                        "image_url": image.image_url,
+                        "image_url": presigned_url if presigned_url else image.image_url,
                         "order": si.image_order
                     })
 
@@ -496,7 +500,7 @@ def get_next_session(
             {
                 "id": img.id,
                 "filename": img.filename,
-                "image_url": img.image_url,
+                "image_url": s3_service.generate_presigned_url(img.image_url, expiration=30) or img.image_url,
                 "order": order
             }
             for order, img in enumerate(images, start=1)
