@@ -10,7 +10,7 @@ from models.user import User
 # from models.prediction import Prediction, SegmentationModel
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+#Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="CAPTCHA Dental AI API",
