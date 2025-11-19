@@ -296,20 +296,20 @@ function Login() {
                     
                     <input
                         className="border p-2 rounded text-[#F4EBD3] bg-transparent placeholder-[#F4EBD3] placeholder-opacity-60"
-                        type="email"
-                        placeholder="Enter Email"
+                        type="text"
+                        placeholder="Email or Username"
                         value={email}
                         onChange={(e) => {
                             setEmail(e.target.value);
                             setEmailError(false);
                         }}
                     />
-                    {emailError && <span style={{ color: "red" }}>*Email* is mandatory</span>}
+                    {emailError && <span style={{ color: "red" }}>*Email or Username* is mandatory</span>}
 
                     <input
                         className="border p-2 rounded text-[#F4EBD3] bg-transparent placeholder-[#F4EBD3] placeholder-opacity-60"
                         type="password"
-                        placeholder="Enter Password"
+                        placeholder="Password"
                         value={password}
                         onChange={(e) => {
                             setPassword(e.target.value);
