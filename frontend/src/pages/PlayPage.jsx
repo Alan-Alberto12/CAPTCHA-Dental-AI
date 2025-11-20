@@ -282,7 +282,44 @@ export default function PlayPage() {
 
     if (!session) return null;
 
+    // Safety check: ensure questions exist and currentQuestionIndex is valid
+    if (!session.questions || session.questions.length === 0) {
+        return (
+            <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+                <div className="bg-[#525470] rounded-xl p-6 max-w-md mx-4">
+                    <h2 className="text-[#F5EEDC] text-xl font-semibold mb-4">No Questions Available</h2>
+                    <p className="text-[#F5EEDC] mb-4">There are no questions available for this session.</p>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full rounded-lg bg-[#F5EEDC] px-4 py-2 font-medium text-[#525470]"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const currentQuestion = session.questions[currentQuestionIndex];
+
+    // Additional safety check for currentQuestion
+    if (!currentQuestion) {
+        return (
+            <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+                <div className="bg-[#525470] rounded-xl p-6 max-w-md mx-4">
+                    <h2 className="text-[#F5EEDC] text-xl font-semibold mb-4">Error Loading Question</h2>
+                    <p className="text-[#F5EEDC] mb-4">Unable to load the current question.</p>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full rounded-lg bg-[#F5EEDC] px-4 py-2 font-medium text-[#525470]"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const progress = `${answeredQuestions.size}/${session.questions.length}`;
 
     return (
