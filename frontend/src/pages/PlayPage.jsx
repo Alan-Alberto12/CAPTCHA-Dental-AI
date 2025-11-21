@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePresignedImages } from "../hooks/usePresignedImages";
+import PresignedImage from "../components/PresignedImage";
 
 /**
  * PlayPage - Image Selection/Annotation System
@@ -7,12 +9,13 @@ import { useNavigate } from "react-router-dom";
  * - Allows users to select images for each question
  * - Submits annotations to backend
  * - Tracks time spent per question
+ * - Auto-refreshes expired presigned URLs
  */
 export default function PlayPage() {
     const navigate = useNavigate();
 
-    // Session data
-    const [session, setSession] = useState(null);
+    // Session data (raw from API)
+    const [rawSession, setRawSession] = useState(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedImages, setSelectedImages] = useState([]);
     const [answeredQuestions, setAnsweredQuestions] = useState(new Set());
@@ -28,6 +31,28 @@ export default function PlayPage() {
 
     // Prevent duplicate session fetches (React StrictMode protection)
     const hasFetchedSession = useRef(false);
+
+    // Presigned URL management with auto-refresh
+    const { session, isRefreshing, refreshError, handleImageError } = usePresignedImages(
+        rawSession,
+        async () => {
+            // Refresh callback: fetch current session to get new presigned URLs
+            const token = localStorage.getItem("token");
+            if (!token) return null;
+
+            const response = await fetch("http://127.0.0.1:8000/auth/sessions/current", {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRawSession(data); // Update raw session
+                return data;
+            }
+            return null;
+        }
+    );
 
     // Fetch new session on mount
     useEffect(() => {
@@ -78,7 +103,7 @@ export default function PlayPage() {
                     setTimeout(() => setMessage(null), 3000);
                 }
 
-                setSession(data);
+                setRawSession(data);
 
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
@@ -257,7 +282,44 @@ export default function PlayPage() {
 
     if (!session) return null;
 
+    // Safety check: ensure questions exist and currentQuestionIndex is valid
+    if (!session.questions || session.questions.length === 0) {
+        return (
+            <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+                <div className="bg-[#525470] rounded-xl p-6 max-w-md mx-4">
+                    <h2 className="text-[#F5EEDC] text-xl font-semibold mb-4">No Questions Available</h2>
+                    <p className="text-[#F5EEDC] mb-4">There are no questions available for this session.</p>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full rounded-lg bg-[#F5EEDC] px-4 py-2 font-medium text-[#525470]"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const currentQuestion = session.questions[currentQuestionIndex];
+
+    // Additional safety check for currentQuestion
+    if (!currentQuestion) {
+        return (
+            <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+                <div className="bg-[#525470] rounded-xl p-6 max-w-md mx-4">
+                    <h2 className="text-[#F5EEDC] text-xl font-semibold mb-4">Error Loading Question</h2>
+                    <p className="text-[#F5EEDC] mb-4">Unable to load the current question.</p>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full rounded-lg bg-[#F5EEDC] px-4 py-2 font-medium text-[#525470]"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const progress = `${answeredQuestions.size}/${session.questions.length}`;
 
     return (
@@ -320,10 +382,12 @@ export default function PlayPage() {
                                     }
                                 `}
                             >
-                                <img
+                                <PresignedImage
                                     src={image.image_url}
                                     alt={image.filename}
                                     className="w-full h-full object-cover"
+                                    onError={() => handleImageError(image.id)}
+                                    isRefreshing={isRefreshing}
                                 />
                                 {isSelected && (
                                     <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
@@ -341,6 +405,18 @@ export default function PlayPage() {
                 </div>
 
                 {/* Messages */}
+                {isRefreshing && (
+                    <div className="mb-4 rounded-lg bg-blue-500/20 border border-blue-500 px-4 py-3">
+                        <p className="text-[#F5EEDC] font-medium">🔄 Refreshing images...</p>
+                    </div>
+                )}
+
+                {refreshError && (
+                    <div className="mb-4 rounded-lg bg-red-500/20 border border-red-500 px-4 py-3">
+                        <p className="text-[#F5EEDC] font-medium">{refreshError}</p>
+                    </div>
+                )}
+
                 {message && (
                     <div className="mb-4 rounded-lg bg-green-500/20 border border-green-500 px-4 py-3">
                         <p className="text-[#F5EEDC] font-medium">{message}</p>
