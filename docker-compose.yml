@@ -29,6 +29,8 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://captcha_user:captcha_password@db:5432/captcha_dental_db
     depends_on:
