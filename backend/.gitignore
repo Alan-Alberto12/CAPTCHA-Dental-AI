@@ -41,3 +41,8 @@ htmlcov/
 # Database
 *.db
 *.sqlite3
+
+# Alembic migrations
+# Keep migration files but ignore Python cache
+alembic/versions/__pycache__/
+!alembic/versions/*.py

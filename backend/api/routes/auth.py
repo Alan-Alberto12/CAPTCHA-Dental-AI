@@ -1,16 +1,38 @@
 # FastAPI core
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+
+# Database & ORM
+from sqlalchemy import Integer, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from datetime import timedelta, datetime, timezone
+
+# Utilities & stdlib
+from datetime import datetime, timedelta, timezone
 import secrets
 import hashlib
+import random
 
+# Database
 from services.database import get_db
 from services.s3_service import s3_service
-from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, settings
+
+# Models
+from models.user import (
+    User, PasswordResetToken, EmailConfirmationToken, Image, Question,
+    AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage,
+    UserStats, UserDataConsent
+)
+
+# Schemas
+from schemas.user import (
+    UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest,
+    ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest,
+    AnnotationCreate, AnnotationResponse, ChallengeResponse, BulkImageImport,
+    BulkQuestionImport, ConsentSubmit, ConsentResponse, ConsentStatusResponse,
+    ConsentHistoryResponse, ConsentHistoryItem, settings
+)
+
+# Security utils
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -158,7 +180,7 @@ def forgot_password(payload : ForgotPasswordRequest, bg : BackgroundTasks, db : 
         bg.add_task(send_reset_email, to_email=user.email, reset_link=reset_link)
 
         return {"message": "If that email exists, a password reset link has been sent."}
-    
+
 
 @router.post("/reset-password", status_code = 200)
 def reset_password(payload : ResetPasswordRequest, db: Session = Depends(get_db)):
@@ -167,14 +189,14 @@ def reset_password(payload : ResetPasswordRequest, db: Session = Depends(get_db)
 
     if not token_row:
         raise HTTPException(status_code = status.HTTP_400_BAD_REQUEST, detail = "Invalid or expired token")
-    
+
     # If token is expired
     if token_row.expires < datetime.now(timezone.utc):
         db.delete(token_row) #Delete it
         db.commit()
 
         raise HTTPException(status_code = status.HTTP_400_BAD_REQUEST, detail = "Invalid or expired token")
-    
+
     # Update user password
     user = db.query(User).filter(User.id == token_row.user_id).first()
 
@@ -185,7 +207,7 @@ def reset_password(payload : ResetPasswordRequest, db: Session = Depends(get_db)
         raise HTTPException(status_code = status.HTTP_400_BAD_REQUEST, detail = "Invalid or expired token")
 
     user.hashed_password = get_password_hash(payload.new_password)
-    db.add(user) 
+    db.add(user)
 
     # Delete token since it is a one time use
     db.delete(token_row)
@@ -242,6 +264,48 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
     return {"message": "Email successfully confirmed!"}
 
 
+@router.put("/editUser", response_model=UserResponse)
+def update_user(
+    user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user information."""
+    # Check if email or username is being changed and already exists
+    if user_update.email and user_update.email != current_user.email:
+        existing_user = db.query(User).filter(User.email == user_update.email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        current_user.email = user_update.email
+
+    if user_update.username and user_update.username != current_user.username:
+        existing_user = db.query(User).filter(User.username == user_update.username).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        current_user.username = user_update.username
+
+    if user_update.first_name is not None:
+        current_user.first_name = user_update.first_name
+
+    if user_update.last_name is not None:
+        current_user.last_name = user_update.last_name
+
+    # Update password if provided
+    if user_update.password is not None:
+        current_user.hashed_password = get_password_hash(user_update.password)
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
+
+
 # ADMIN ENDPOINTS
 @router.post("/admin/promote", response_model=UserResponse)
 def promote_user(
@@ -288,7 +352,7 @@ def demote_user(
             detail=f"User with email '{request.email}' not found"
         )
 
-    # Prevent self-demotion 
+    # Prevent self-demotion
     if target_user.id == current_admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -814,43 +878,157 @@ def import_questions(
     }
 
 
-@router.put("/editUser", response_model=UserResponse)
-def update_user(
-    user_update: UserUpdate,
+# Data Consent Endpoints
+
+# Grab current user's consent status
+@router.get("/consent/status", response_model=ConsentStatusResponse)
+def get_consent_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update current user information."""
-    # Check if email or username is being changed and already exists
-    if user_update.email and user_update.email != current_user.email:
-        existing_user = db.query(User).filter(User.email == user_update.email).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-        current_user.email = user_update.email
+    return ConsentStatusResponse(
+        user_id = current_user.id,
+        username = current_user.username,
+        has_given_consent = current_user.has_given_data_consent,
+        last_update = current_user.last_consent_update,
+        has_responded = current_user.has_given_data_consent is not None
+    )
 
-    if user_update.username and user_update.username != current_user.username:
-        existing_user = db.query(User).filter(User.username == user_update.username).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
-        current_user.username = user_update.username
+# Current Users consent opt in or out
+@router.post("/consent/submit", response_model=ConsentResponse, status_code=status.HTTP_201_CREATED)
+def submit_consent(
+    payload : ConsentSubmit,
+    db : Session = Depends(get_db),
+    current_user : User = Depends(get_current_user)
+):
+    consent_record = UserDataConsent(
+        user_id = current_user.id,
+        consent_given = payload.consent_given,
+        consented_at = datetime.now(timezone.utc),
+        ip_address = None,
+        user_agent = None
+    )
+    db.add(consent_record)
 
-    if user_update.first_name is not None:
-        current_user.first_name = user_update.first_name
-
-    if user_update.last_name is not None:
-        current_user.last_name = user_update.last_name
-
-    # Update password if provided
-    if user_update.password is not None:
-        current_user.hashed_password = get_password_hash(user_update.password)
+    current_user.has_given_data_consent = payload.consent_given
+    current_user.last_consent_update = datetime.now(timezone.utc)
+    db.add(current_user)
 
     db.commit()
-    db.refresh(current_user)
+    db.refresh(consent_record)
 
-    return current_user
+    return consent_record
+
+# Get the complete consent history for the current user
+@router.get("/consent/history", response_model=ConsentHistoryResponse)
+def get_consent_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    history = (
+        db.query(UserDataConsent)
+        .filter(UserDataConsent.user_id == current_user.id)
+        .order_by(UserDataConsent.consented_at.desc())
+        .all()
+    )
+
+    return ConsentHistoryResponse(
+        user_id=current_user.id,
+        history=[ConsentHistoryItem.model_validate(record) for record in history]
+    )
+
+# Get consent statistics (Admin privilege)
+@router.get("/admin/consent/summary")
+def get_consent_summary(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    total_users = db.query(User).count()
+    opted_in = db.query(User).filter(User.has_given_data_consent == True).count()
+    opted_out = db.query(User).filter(User.has_given_data_consent == False).count()
+    not_responded = db.query(User).filter(User.has_given_data_consent.is_(None)).count()
+
+    opt_in_percentage = (opted_in / total_users * 100) if total_users > 0 else 0
+
+    return {
+        "total_users": total_users,
+        "opted_in": opted_in,
+        "opted_out": opted_out,
+        "not_responded": not_responded,
+        "opt_in_percentage": round(opt_in_percentage, 2)
+    }
+
+# Grab all users that have opted in (Admin privilege)
+@router.get("/admin/consent/users")
+def get_users_consent_status(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    users = db.query(User).all()
+
+    return {
+        "users": [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "has_given_consent": user.has_given_data_consent,
+                "last_consent_update": user.last_consent_update,
+                "created_at": user.created_at
+            }
+            for user in users
+        ]
+    }
+
+# Grab stats for users who have opted in (Admin privilege)
+@router.get("/admin/stats/user")
+def get_user_stats(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    stats = (
+        db.query(
+            User.id,
+            User.username,
+            User.email,
+            func.count(Annotation.id).label("total_attempts"),
+            func.sum(func.cast(Annotation.is_correct == True, Integer)).label("correct_answers"),
+            func.sum(func.cast(Annotation.is_correct == False, Integer)).label("incorrect_answers"),
+            func.avg(Annotation.time_spent).label("avg_time_spent")
+        )
+        .join(AnnotationSession, User.id == AnnotationSession.user_id)
+        .join(Annotation, AnnotationSession.id == Annotation.session_id)
+        .filter(User.has_given_data_consent == True)
+        .group_by(User.id, User.username, User.email)
+        .all()
+    )
+
+    results = []
+    for stat in stats:
+        correct = stat.correct_answers or 0
+        incorrect = stat.incorrect_answers or 0
+        accuracy = (correct / stat.total_attempts * 100) if stat.total_attempts > 0 else 0
+        results.append({
+            "user_id": stat.id,
+            "username": stat.username,
+            "email": stat.email,
+            "total_attempts": stat.total_attempts,
+            "correct_answers": correct,
+            "incorrect_answers": incorrect,
+            "accuracy_percentage": round(accuracy, 2),
+            "avg_time_spent": round(stat.avg_time_spent, 2) if stat.avg_time_spent else 0
+        })
+
+     # Get consent breakdown
+    total_users = db.query(User).count()
+    opted_in = db.query(User).filter(User.has_given_data_consent == True).count()
+
+    return {
+        "stats": results,
+        "meta": {
+            "total_users_in_stats": len(results),
+            "total_users": total_users,
+            "opted_in_users": opted_in,
+            "note": "Only includes users who have explicitly opted in to data usage"
+        }
+    }

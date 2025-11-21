@@ -19,9 +19,14 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    #connects users to their sessions and stats
+    # Data consent tracking
+    has_given_data_consent = Column(Boolean, nullable=True, default=None)  # None = not asked, True = opted in, False = opted out
+    last_consent_update = Column(DateTime(timezone=True), nullable=True)
+
+    # Connects users to their sessions and stats
     sessions = relationship("AnnotationSession", back_populates="user", cascade="all, delete-orphan")
     stats = relationship("UserStats", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    consent_records = relationship("UserDataConsent", back_populates="user", cascade="all, delete-orphan")
 
 
 class PasswordResetToken(Base):
@@ -154,3 +159,15 @@ class UserStats(Base):
 
     user = relationship("User", back_populates="stats")
 
+
+class UserDataConsent(Base):
+    __tablename__ = "user_data_consent"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    consent_given = Column(Boolean, nullable=False)
+    consented_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(Text, nullable=True)
+
+    user = relationship("User", back_populates="consent_records")
