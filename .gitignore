@@ -39,3 +39,8 @@ yarn-error.log*
 /frontend/build
 /backend/dist
 
+# Database dumps (may contain sensitive data)
+*.sql
+database_*.sql
+backup_*.sql
+
