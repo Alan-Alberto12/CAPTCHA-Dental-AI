@@ -452,7 +452,11 @@ export default function AdminPage() {
 
                             <div>
                                 <label className="text-[#F4EBD3] font-semibold mb-2 block">
+<<<<<<< Updated upstream
                                     Question Image (Optional)
+=======
+                                    Question Images
+>>>>>>> Stashed changes
                                 </label>
                                 <input
                                     type="file"

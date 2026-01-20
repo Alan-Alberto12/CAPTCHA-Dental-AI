@@ -7,6 +7,7 @@ import Play from './pages/Play'
 import Leaderboard from './pages/Leaderboard'
 import AdminPage from './pages/AdminPage'
 import ProtectedLayout from './layouts/ProtectedLayout'
+import Admin from './pages/AdminPage'
 
 function App() {
   const [currentPage, setCurrentPage] = useState('login')
@@ -30,7 +31,7 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/admin" element={<Admin />} />
       <Route path="/signup" element={<SignUp />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
