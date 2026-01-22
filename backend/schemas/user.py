@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     MAIL_FROM: str = "no-reply@captcha.local"
 
+    # --- AWS S3 ---
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-2"
+    AWS_S3_BUCKET: str = "captcha-dental-images"
+
     # tell pydantic-settings to read .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

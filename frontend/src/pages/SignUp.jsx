@@ -12,10 +12,24 @@ function SignUp() {
     const [message, setMessage] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
 
+    const validatePassword = (password) => {
+      const minLength = password.length >= 8;
+      const hasUppercase = /[A-Z]/.test(password);
+      const hasNumber = /[0-9]/.test(password);
+      const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+      
+      return { minLength, hasUppercase, hasNumber, hasSpecial };
+    };
 
     const handleSubmit = async (e) => {
       e.preventDefault();
       console.log("Email: ", email);
+
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.minLength || !passwordValidation.hasUppercase || !passwordValidation.hasNumber || !passwordValidation.hasSpecial) {
+        setMessage("Password does not meet requirements.");
+        return;
+      }
 
       if (password !== confirmPassword) {
         setMessage("Passwords do not match, please try again.");
@@ -50,7 +64,14 @@ function SignUp() {
         } 
         else {
           const errorData = await response.json();
-          setMessage(errorData.detail || "Signup failed.");
+          // Handle different error response formats
+          let errorMessage = "Signup failed.";
+          if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map(err => err.msg).join(', ');
+          }
+          setMessage(errorMessage);
         }
       } catch (error) {
         console.error("Error during signup:", error);
@@ -116,7 +137,7 @@ function SignUp() {
               />
               <input 
               className="border p-2 rounded text-[#F4EBD3]" 
-              placeholder="Password" 
+              placeholder="Enter Password" 
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
