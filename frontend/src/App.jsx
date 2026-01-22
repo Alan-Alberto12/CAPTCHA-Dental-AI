@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Play from './pages/PlayPage'
 import Leaderboard from './pages/Leaderboard'
 import EditUser from './pages/EditUser'
+import ConsentFormPage from './pages/ConsentFormPage'
 import ProtectedLayout from './layouts/ProtectedLayout'
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/play" element={<Play />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path='/consent' element={<ConsentFormPage/>} />
       </Route>
       <Route path="/edit-user" element={<EditUser />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
