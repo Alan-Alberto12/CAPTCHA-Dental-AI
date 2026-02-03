@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str | None = None
     MAIL_FROM: str = "no-reply@captcha.local"
 
+    # --- AWS S3 ---
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-2"
+    AWS_S3_BUCKET: str = "captcha-dental-images"
+
     # tell pydantic-settings to read .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -131,12 +137,17 @@ class QuestionResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     user_id: int
+    title: Optional[str] = None
     is_completed: bool
     started_at: datetime
     completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class SessionTitleUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
 
 
 class AnnotationCreate(BaseModel):

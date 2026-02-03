@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { usePresignedImages } from "../hooks/usePresignedImages";
+import PresignedImage from "../components/PresignedImage";
 
 /**
  * PlayPage - Image Selection/Annotation System
@@ -7,12 +9,13 @@ import { useNavigate } from "react-router-dom";
  * - Allows users to select images for each question
  * - Submits annotations to backend
  * - Tracks time spent per question
+ * - Auto-refreshes expired presigned URLs
  */
 export default function PlayPage() {
     const navigate = useNavigate();
 
-    // Session data
-    const [session, setSession] = useState(null);
+    // Session data (raw from API)
+    const [rawSession, setRawSession] = useState(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedImages, setSelectedImages] = useState([]);
     const [answeredQuestions, setAnsweredQuestions] = useState(new Set());
@@ -25,9 +28,34 @@ export default function PlayPage() {
 
     // Session completion
     const [sessionCompleted, setSessionCompleted] = useState(false);
+    const [sessionTitle, setSessionTitle] = useState("");
+    const [isSavingTitle, setIsSavingTitle] = useState(false);
+    const [titleSaved, setTitleSaved] = useState(false);
 
     // Prevent duplicate session fetches (React StrictMode protection)
     const hasFetchedSession = useRef(false);
+
+    // Presigned URL management with auto-refresh
+    const { session, isRefreshing, refreshError, handleImageError } = usePresignedImages(
+        rawSession,
+        async () => {
+            // Refresh callback: fetch current session to get new presigned URLs
+            const token = localStorage.getItem("token");
+            if (!token) return null;
+
+            const response = await fetch("http://127.0.0.1:8000/auth/sessions/current", {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRawSession(data); // Update raw session
+                return data;
+            }
+            return null;
+        }
+    );
 
     // Fetch new session on mount
     useEffect(() => {
@@ -78,7 +106,7 @@ export default function PlayPage() {
                     setTimeout(() => setMessage(null), 3000);
                 }
 
-                setSession(data);
+                setRawSession(data);
 
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
@@ -170,7 +198,7 @@ export default function PlayPage() {
                     setSessionCompleted(true);
                     setMessage("🎉 Session completed! All questions answered.");
                 } else {
-                    setMessage("✅ Answer submitted!");
+                    setMessage("Answer submitted!");
                     // Auto-advance to next unanswered question after 1 second
                     setTimeout(() => {
                         handleNextQuestion();
@@ -223,8 +251,40 @@ export default function PlayPage() {
         setSelectedImages([]);
     };
 
+    const handleSaveTitle = async () => {
+        if (!sessionTitle.trim() || !session) return;
+
+        setIsSavingTitle(true);
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(`http://127.0.0.1:8000/auth/sessions/${session.session_id}/title`, {
+                method: "PATCH",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ title: sessionTitle.trim() }),
+            });
+
+            if (response.ok) {
+                setTitleSaved(true);
+                setMessage("Session title saved!");
+            } else {
+                const errorData = await response.json();
+                setError(errorData.detail || "Failed to save title");
+            }
+        } catch (err) {
+            console.error("Error saving title:", err);
+            setError("Network error. Please try again.");
+        } finally {
+            setIsSavingTitle(false);
+        }
+    };
+
     const handleNewSession = () => {
         hasFetchedSession.current = false;
+        setSessionTitle("");
+        setTitleSaved(false);
         fetchNewSession(true); // Force new session
     };
 
@@ -257,7 +317,44 @@ export default function PlayPage() {
 
     if (!session) return null;
 
+    // Safety check: ensure questions exist and currentQuestionIndex is valid
+    if (!session.questions || session.questions.length === 0) {
+        return (
+            <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+                <div className="bg-[#525470] rounded-xl p-6 max-w-md mx-4">
+                    <h2 className="text-[#F5EEDC] text-xl font-semibold mb-4">No Questions Available</h2>
+                    <p className="text-[#F5EEDC] mb-4">There are no questions available for this session.</p>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full rounded-lg bg-[#F5EEDC] px-4 py-2 font-medium text-[#525470]"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const currentQuestion = session.questions[currentQuestionIndex];
+
+    // Additional safety check for currentQuestion
+    if (!currentQuestion) {
+        return (
+            <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+                <div className="bg-[#525470] rounded-xl p-6 max-w-md mx-4">
+                    <h2 className="text-[#F5EEDC] text-xl font-semibold mb-4">Error Loading Question</h2>
+                    <p className="text-[#F5EEDC] mb-4">Unable to load the current question.</p>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        className="w-full rounded-lg bg-[#F5EEDC] px-4 py-2 font-medium text-[#525470]"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const progress = `${answeredQuestions.size}/${session.questions.length}`;
 
     return (
@@ -303,8 +400,8 @@ export default function PlayPage() {
                     </p>
                 </div>
 
-                {/* Image Grid (4 images) */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                {/* Image Grid (2x2) */}
+                <div className="grid grid-cols-2 gap-4 mb-6 max-w-2xl mx-auto">
                     {session.images.map((image) => {
                         const isSelected = selectedImages.includes(image.id);
                         return (
@@ -320,10 +417,12 @@ export default function PlayPage() {
                                     }
                                 `}
                             >
-                                <img
+                                <PresignedImage
                                     src={image.image_url}
                                     alt={image.filename}
                                     className="w-full h-full object-cover"
+                                    onError={() => handleImageError(image.id)}
+                                    isRefreshing={isRefreshing}
                                 />
                                 {isSelected && (
                                     <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
@@ -341,6 +440,18 @@ export default function PlayPage() {
                 </div>
 
                 {/* Messages */}
+                {isRefreshing && (
+                    <div className="mb-4 rounded-lg bg-blue-500/20 border border-blue-500 px-4 py-3">
+                        <p className="text-[#F5EEDC] font-medium">🔄 Refreshing images...</p>
+                    </div>
+                )}
+
+                {refreshError && (
+                    <div className="mb-4 rounded-lg bg-red-500/20 border border-red-500 px-4 py-3">
+                        <p className="text-[#F5EEDC] font-medium">{refreshError}</p>
+                    </div>
+                )}
+
                 {message && (
                     <div className="mb-4 rounded-lg bg-green-500/20 border border-green-500 px-4 py-3">
                         <p className="text-[#F5EEDC] font-medium">{message}</p>
@@ -385,15 +496,38 @@ export default function PlayPage() {
                 ) : (
                     <div className="max-w-md mx-auto">
                         <div className="mb-6 rounded-xl bg-[#525470] px-6 py-8 text-center">
-                            <div className="text-6xl mb-4">🎉</div>
                             <h2 className="text-2xl font-bold text-[#F5EEDC] mb-2">Session Complete!</h2>
                             <p className="text-[#F5EEDC] opacity-80 mb-4">
                                 You answered all {session.questions.length} questions.
                             </p>
-                            <div className="bg-white/10 rounded-lg px-4 py-3">
-                                <p className="text-[#F5EEDC] text-sm">
-                                    💡 Click "Start New Session" to begin a fresh session. Your progress is saved!
-                                </p>
+
+                            {/* Session Title Input */}
+                            <div className="mt-4 text-left">
+                                <label className="block text-[#F5EEDC] text-sm font-medium mb-2">
+                                    Name this session (optional):
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={sessionTitle}
+                                        onChange={(e) => setSessionTitle(e.target.value)}
+                                        placeholder="e.g., Cavity Detection Practice"
+                                        maxLength={100}
+                                        disabled={titleSaved}
+                                        className="flex-1 px-4 py-2 rounded-lg bg-white/90 text-[#525470] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F5EEDC] disabled:opacity-60"
+                                    />
+                                    <button
+                                        onClick={handleSaveTitle}
+                                        disabled={!sessionTitle.trim() || isSavingTitle || titleSaved}
+                                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                            titleSaved
+                                                ? 'bg-green-500 text-white'
+                                                : 'bg-[#F5EEDC] text-[#525470] hover:bg-[#F5EEDC]/90 disabled:opacity-50 disabled:cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {isSavingTitle ? '...' : titleSaved ? '✓' : 'Save'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <button
@@ -403,10 +537,10 @@ export default function PlayPage() {
                             Start New Session
                         </button>
                         <button
-                            onClick={() => navigate("/")}
+                            onClick={() => navigate("/dashboard")}
                             className="w-full mt-3 rounded-lg border-2 border-[#525470] px-6 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
                         >
-                            Back to Home
+                            Back to Dashboard
                         </button>
                     </div>
                 )}

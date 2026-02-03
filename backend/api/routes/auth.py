@@ -8,8 +8,9 @@ import secrets
 import hashlib
 
 from services.database import get_db
+from services.s3_service import s3_service
 from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, settings
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, SessionTitleUpdate, settings
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -334,10 +335,12 @@ def get_current_session(
     for si in session_images:
         image = db.query(Image).filter(Image.id == si.image_id).first()
         if image:
+            # Generate presigned URL for private S3 bucket access (valid for 1 hour)
+            presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
             images.append({
                 "id": image.id,
                 "filename": image.filename,
-                "image_url": image.image_url,
+                "image_url": presigned_url if presigned_url else image.image_url,
                 "order": si.image_order
             })
 
@@ -371,6 +374,46 @@ def get_current_session(
         "started_at": session.started_at
     }
 
+@router.get("/sessions/completed")
+def get_completed_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all completed sessions for the current user to display on Dashboard"""
+    
+    sessions = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.is_completed == True
+    ).order_by(AnnotationSession.completed_at.desc()).all()
+
+    result = []
+    for session in sessions:
+        # Get question count for this session
+        question_count = db.query(SessionQuestion).filter(
+            SessionQuestion.session_id == session.id
+        ).count()
+
+        #get the first image for this session (thumbnail on Dashboard tab)
+        session_first_image = db.query(SessionImage).filter(
+            SessionImage.session_id == session.id
+        ).order_by(SessionImage.image_order).first()
+
+        thumbnail_url = None
+        if session_first_image:
+            image = db.query(Image).filter(Image.id == session_first_image.image_id).first()
+            if image:
+                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+
+        result.append({
+            "session_id": session.id,
+            "title": session.title,
+            "started_at": session.started_at,
+            "completed_at": session.completed_at,
+            "question_count": question_count,
+            "thumbnail_url": thumbnail_url
+        })
+
+    return result
 
 @router.get("/sessions/next")
 def get_next_session(
@@ -402,10 +445,12 @@ def get_next_session(
             for si in session_images:
                 image = db.query(Image).filter(Image.id == si.image_id).first()
                 if image:
+                    # Generate presigned URL for private S3 bucket access (valid for 1 hour)
+                    presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
                     images.append({
                         "id": image.id,
                         "filename": image.filename,
-                        "image_url": image.image_url,
+                        "image_url": presigned_url if presigned_url else image.image_url,
                         "order": si.image_order
                     })
 
@@ -495,7 +540,7 @@ def get_next_session(
             {
                 "id": img.id,
                 "filename": img.filename,
-                "image_url": img.image_url,
+                "image_url": s3_service.generate_presigned_url(img.image_url, expiration=30) or img.image_url,
                 "order": order
             }
             for order, img in enumerate(images, start=1)
@@ -638,13 +683,43 @@ def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depen
     return annotations
 
 
-@router.post("/admin/import-images", status_code=201)
-def import_images(
+@router.patch("/sessions/{session_id}/title")
+def update_session_title(
+    session_id: int,
+    payload: SessionTitleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update the title of a completed session"""
+    session = db.query(AnnotationSession).filter(AnnotationSession.id == session_id).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This session doesn't belong to you")
+
+    if not session.is_completed:
+        raise HTTPException(status_code=400, detail="Can only title completed sessions")
+
+    session.title = payload.title
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session.id,
+        "title": session.title,
+        "message": "Session title updated successfully"
+    }
+
+
+@router.post("/admin/import-images-url", status_code=201)
+def import_images_url(
     payload: BulkImageImport,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Import multiple images (admin only)"""
+    """Import multiple images from URLs (admin only)"""
 
     # Check admin
     if not current_user.is_admin:
@@ -674,6 +749,95 @@ def import_images(
     return {
         "message": "Images imported successfully",
         "images_imported": imported_count
+    }
+
+
+@router.post("/admin/import-images-file", status_code=201)
+async def import_images_file(
+    files: list[UploadFile] = File(...),
+    folder_name: str = "images",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload single or multiple image files to S3 (admin only)"""
+
+    # Check admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can upload images"
+        )
+
+    # Validate file types
+    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+    results = []
+    failed = []
+
+    for file in files:
+        try:
+            # Validate content type
+            if file.content_type not in ALLOWED_TYPES:
+                failed.append({
+                    "filename": file.filename,
+                    "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP"
+                })
+                continue
+
+            # Read file data
+            file_data = await file.read()
+
+            # Validate file size
+            if len(file_data) > MAX_FILE_SIZE:
+                failed.append({
+                    "filename": file.filename,
+                    "error": f"File too large: {len(file_data)} bytes. Max: {MAX_FILE_SIZE} bytes"
+                })
+                continue
+
+            # Upload to S3
+            s3_url = s3_service.upload_file(
+                file_data=file_data,
+                filename=file.filename,
+                content_type=file.content_type,
+                folder=folder_name
+            )
+
+            if not s3_url:
+                failed.append({
+                    "filename": file.filename,
+                    "error": "Failed to upload to S3"
+                })
+                continue
+
+            # Save to database
+            image = Image(
+                filename=file.filename,
+                image_url=s3_url
+            )
+            db.add(image)
+            db.commit()
+            db.refresh(image)
+
+            results.append({
+                "id": image.id,
+                "filename": image.filename,
+                "image_url": image.image_url
+            })
+
+        except Exception as e:
+            failed.append({
+                "filename": file.filename,
+                "error": str(e)
+            })
+
+    return {
+        "uploaded": len(results),
+        "failed": len(failed),
+        "folder": folder_name,
+        "results": results,
+        "failures": failed
     }
 
 
