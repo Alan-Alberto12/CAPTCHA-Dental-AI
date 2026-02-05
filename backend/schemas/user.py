@@ -195,3 +195,18 @@ class ChallengeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ML prediction schemas
+class PredictionResponse(BaseModel):
+    prediction_id: int
+    image_id: int
+    label: str
+    confidence: float
+    model: str
+
+
+class ModelStatusResponse(BaseModel):
+    available: bool
+    architecture: Optional[str] = None
+    best_val_acc: Optional[float] = None

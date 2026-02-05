@@ -154,3 +154,18 @@ class UserStats(Base):
 
     user = relationship("User", back_populates="stats")
 
+
+class Prediction(Base):
+    """CNN prediction result for an image"""
+    __tablename__ = "predictions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    image_id = Column(Integer, ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
+    model_name = Column(String, nullable=False)         # e.g. "resnet50"
+    predicted_label = Column(String, nullable=False)     # "needs_review" or "no_review"
+    confidence = Column(Float, nullable=False)           # softmax probability
+    model_version = Column(String, nullable=True)        # .pth filename
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    image = relationship("Image")
+
