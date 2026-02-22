@@ -1,5 +1,5 @@
 """
-CNN architecture wrapper — supports ResNet50, EfficientNet-B0, DenseNet121.
+Model architecture wrapper — supports CNNs and ViT.
 Uses modern torchvision weights API.
 """
 
@@ -9,10 +9,10 @@ from torchvision import models
 
 def get_model(arch: str = "resnet50", num_classes: int = 2, pretrained: bool = True) -> nn.Module:
     """
-    Returns a CNN with the final layer replaced for binary classification.
+    Returns a model with the final head replaced for classification.
 
     Args:
-        arch: Model architecture ("resnet50", "efficientnet_b0", "densenet121")
+        arch: Model architecture ("resnet50", "efficientnet_b0", "densenet121", "vit_b_16")
         num_classes: Number of output classes
         pretrained: Whether to use ImageNet pretrained weights
 
@@ -43,7 +43,19 @@ def get_model(arch: str = "resnet50", num_classes: int = 2, pretrained: bool = T
             nn.Linear(model.classifier.in_features, num_classes),
         )
 
+    elif arch == "vit_b_16":
+        weights = models.ViT_B_16_Weights.DEFAULT if pretrained else None
+        model = models.vit_b_16(weights=weights)
+        in_features = model.heads.head.in_features
+        model.heads = nn.Sequential(
+            nn.Dropout(0.3),
+            nn.Linear(in_features, num_classes),
+        )
+
     else:
-        raise ValueError(f"Unsupported architecture: {arch}. Use resnet50, efficientnet_b0, or densenet121.")
+        raise ValueError(
+            f"Unsupported architecture: {arch}. "
+            f"Use resnet50, efficientnet_b0, densenet121, or vit_b_16."
+        )
 
     return model

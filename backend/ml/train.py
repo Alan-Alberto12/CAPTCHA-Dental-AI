@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Standalone CNN training script for dental image binary classification.
+Standalone model training script for dental image binary classification.
 
 Usage (from backend/ directory):
     python -m ml.train
@@ -27,6 +27,7 @@ from ml.config import (
     ML_MODELS_DIR,
     NUM_CLASSES,
     NUM_EPOCHS,
+    SUPPORTED_MODEL_ARCHS,
     SCHEDULER_PATIENCE,
 )
 from ml.data_prep import cleanup_training_data, prepare_training_data
@@ -117,7 +118,7 @@ def train_model(
     """
     Full training pipeline:
     1. Download labeled images from S3
-    2. Train the CNN
+    2. Train the selected model architecture
     3. Evaluate on validation set
     4. Save .pth checkpoint
     5. Clean up temporary data
@@ -269,10 +270,10 @@ def train_model(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train dental image CNN classifier")
+    parser = argparse.ArgumentParser(description="Train dental image classifier")
     parser.add_argument(
         "--arch", default=DEFAULT_MODEL_ARCH,
-        choices=["resnet50", "efficientnet_b0", "densenet121"],
+        choices=list(SUPPORTED_MODEL_ARCHS),
         help="Model architecture",
     )
     parser.add_argument("--epochs", type=int, default=NUM_EPOCHS, help="Number of epochs")

@@ -17,7 +17,13 @@ S3_LABEL_PREFIXES = {
 }
 
 # Model defaults
-DEFAULT_MODEL_ARCH = "efficientnet_b0"  # resnet50 | efficientnet_b0 | densenet121
+SUPPORTED_MODEL_ARCHS = (
+    "resnet50",
+    "efficientnet_b0",
+    "densenet121",
+    "vit_b_16",
+)
+DEFAULT_MODEL_ARCH = "efficientnet_b0"
 NUM_CLASSES = 2
 IMAGE_SIZE = 224
 BATCH_SIZE = 8

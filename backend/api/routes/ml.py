@@ -12,6 +12,7 @@ from api.routes.auth import get_current_admin, get_current_user
 from models.user import Image, Prediction, User
 from services.database import get_db
 from services.s3_service import s3_service
+from ml.config import DEFAULT_MODEL_ARCH, NUM_EPOCHS, SUPPORTED_MODEL_ARCHS
 
 router = APIRouter(prefix="/ml", tags=["Machine Learning"])
 
@@ -99,15 +100,18 @@ def predict_image(
 @router.post("/train", status_code=202)
 def trigger_training(
     background_tasks: BackgroundTasks,
-    arch: str = "resnet50",
-    epochs: int = 20,
+    arch: str = DEFAULT_MODEL_ARCH,
+    epochs: int = NUM_EPOCHS,
     current_user: User = Depends(get_current_admin),
 ):
     """Trigger model training in the background (admin only)."""
     from ml.train import train_model
 
-    if arch not in ("resnet50", "efficientnet_b0", "densenet121"):
-        raise HTTPException(status_code=400, detail="Invalid architecture")
+    if arch not in SUPPORTED_MODEL_ARCHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid architecture. Supported: {', '.join(SUPPORTED_MODEL_ARCHS)}",
+        )
 
     background_tasks.add_task(train_model, arch=arch, epochs=epochs)
 
