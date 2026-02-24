@@ -237,16 +237,19 @@ def train_model(
     torch.save(checkpoint, model_path)
 
     latest_path = ML_MODELS_DIR / "latest.pth"
+    latest_arch_path = ML_MODELS_DIR / f"latest_{arch}.pth"
     torch.save(checkpoint, latest_path)
+    torch.save(checkpoint, latest_arch_path)
 
     # Verify the files were actually saved
-    if model_path.exists() and latest_path.exists():
+    if model_path.exists() and latest_path.exists() and latest_arch_path.exists():
         size_mb = model_path.stat().st_size / (1024 * 1024)
         print(f"\n{'=' * 60}")
         print(f"MODEL SAVED SUCCESSFULLY")
         print(f"{'=' * 60}")
         print(f"  File: {model_path}")
         print(f"  Latest: {latest_path}")
+        print(f"  Latest ({arch}): {latest_arch_path}")
         print(f"  Size: {size_mb:.1f} MB")
         print(f"  Architecture: {arch}")
         print(f"  Best Val Acc: {best_val_acc:.2f}%")
@@ -256,6 +259,7 @@ def train_model(
         print(f"  Expected path: {model_path}")
         print(f"  Exists: {model_path.exists()}")
         print(f"  Latest exists: {latest_path.exists()}")
+        print(f"  Latest ({arch}) exists: {latest_arch_path.exists()}")
 
     # --- Step 6: Clean up ---
     cleanup_training_data()

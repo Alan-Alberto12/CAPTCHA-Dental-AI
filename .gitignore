@@ -1,5 +1,7 @@
 # Environment variables
 .env
+backend/.venv311
+backend/.venv
 .env.local
 .env.development.local
 .env.test.local

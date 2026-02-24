@@ -12,7 +12,7 @@ from api.routes.auth import get_current_admin, get_current_user
 from models.user import Image, Prediction, User
 from services.database import get_db
 from services.s3_service import s3_service
-from ml.config import DEFAULT_MODEL_ARCH, NUM_EPOCHS, SUPPORTED_MODEL_ARCHS
+from ml.config import DEFAULT_MODEL_ARCH, ML_MODELS_DIR, NUM_EPOCHS, SUPPORTED_MODEL_ARCHS
 
 router = APIRouter(prefix="/ml", tags=["Machine Learning"])
 
@@ -21,6 +21,7 @@ router = APIRouter(prefix="/ml", tags=["Machine Learning"])
 @router.post("/predict/upload")
 async def predict_uploaded_image(
     file: UploadFile = File(...),
+    arch: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
     """Run CNN prediction on an uploaded image (not stored in DB)."""
@@ -30,12 +31,24 @@ async def predict_uploaded_image(
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid image type. Use JPEG, PNG, or WEBP.")
 
+    if arch is not None and arch not in SUPPORTED_MODEL_ARCHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid architecture. Supported: {', '.join(SUPPORTED_MODEL_ARCHS)}",
+        )
+
     image_bytes = await file.read()
 
     service = PredictionService.get_instance()
     if service.model is None:
-        if not service.load_model():
+        if not service.load_model(arch=arch):
             raise HTTPException(status_code=503, detail="No trained model available")
+    elif arch is not None and service.arch != arch:
+        if not service.load_model(arch=arch, force_reload=True):
+            raise HTTPException(
+                status_code=503,
+                detail=f"No trained model available for architecture '{arch}'",
+            )
 
     return service.predict(image_bytes)
 
@@ -43,10 +56,18 @@ async def predict_uploaded_image(
 @router.post("/predict/{image_id}")
 def predict_image(
     image_id: int,
+    arch: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Run CNN prediction on an existing image by ID."""
+
+    if arch is not None and arch not in SUPPORTED_MODEL_ARCHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid architecture. Supported: {', '.join(SUPPORTED_MODEL_ARCHS)}",
+        )
+
     from ml.predict import PredictionService
 
     image = db.query(Image).filter(Image.id == image_id).first()
@@ -71,8 +92,14 @@ def predict_image(
     # Load model if not already loaded
     service = PredictionService.get_instance()
     if service.model is None:
-        if not service.load_model():
+        if not service.load_model(arch=arch):
             raise HTTPException(status_code=503, detail="No trained model available")
+    elif arch is not None and service.arch != arch:
+        if not service.load_model(arch=arch, force_reload=True):
+            raise HTTPException(
+                status_code=503,
+                detail=f"No trained model available for architecture '{arch}'",
+            )
 
     result = service.predict(image_bytes)
 
@@ -123,11 +150,18 @@ def trigger_training(
 
 
 @router.get("/model/status")
-def model_status(current_user: User = Depends(get_current_user)):
+def model_status(
+    arch: str | None = None,
+    current_user: User = Depends(get_current_user),
+):
     """Check if a trained model is available and its metadata."""
-    from ml.config import ML_MODELS_DIR
+    if arch is not None and arch not in SUPPORTED_MODEL_ARCHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid architecture. Supported: {', '.join(SUPPORTED_MODEL_ARCHS)}",
+        )
 
-    latest = ML_MODELS_DIR / "latest.pth"
+    latest = ML_MODELS_DIR / f"latest_{arch}.pth" if arch else ML_MODELS_DIR / "latest.pth"
 
     if not latest.exists():
         return {"available": False}
@@ -139,6 +173,7 @@ def model_status(current_user: User = Depends(get_current_user)):
     return {
         "available": True,
         "architecture": checkpoint.get("arch"),
+        "path": str(latest),
         "best_val_acc": checkpoint.get("best_val_acc"),
         "trained_at": checkpoint.get("trained_at"),
     }

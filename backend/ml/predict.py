@@ -35,6 +35,7 @@ class PredictionService:
         self.class_to_idx = None
         self.idx_to_class = None
         self.arch = None
+        self.model_path: Optional[Path] = None
 
     @classmethod
     def get_instance(cls) -> "PredictionService":
@@ -43,18 +44,33 @@ class PredictionService:
             cls._instance = cls()
         return cls._instance
 
-    def load_model(self, model_path: Optional[str] = None) -> bool:
+    def load_model(
+        self,
+        model_path: Optional[str] = None,
+        arch: Optional[str] = None,
+        force_reload: bool = False,
+    ) -> bool:
         """
         Load a trained model from a .pth checkpoint.
-        Defaults to latest.pth if no path is given.
+        Defaults to latest.pth if no path/architecture is given.
 
         Returns:
             True if model loaded successfully, False otherwise
         """
-        if model_path is None:
-            path = ML_MODELS_DIR / "latest.pth"
-        else:
+        if model_path is not None:
             path = Path(model_path)
+        elif arch is not None:
+            path = ML_MODELS_DIR / f"latest_{arch}.pth"
+        else:
+            path = ML_MODELS_DIR / "latest.pth"
+
+        if (
+            not force_reload
+            and self.model is not None
+            and self.model_path is not None
+            and self.model_path.resolve() == path.resolve()
+        ):
+            return True
 
         if not path.exists():
             logger.warning(f"Model file not found: {path}")
@@ -73,6 +89,7 @@ class PredictionService:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
         self.model.eval()
+        self.model_path = path
 
         logger.info(f"Loaded model: {self.arch} from {path}")
         return True
