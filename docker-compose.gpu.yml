@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        # Install CUDA-enabled PyTorch wheels in the backend image.
+        # Adjust to your target CUDA build if needed.
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu124
+    # Docker Compose GPU reservation (supported by current Docker Desktop/Engine)
+    gpus: all
