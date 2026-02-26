@@ -133,18 +133,21 @@ def train_model(
     print("DOWNLOADING TRAINING DATA FROM S3")
     print("=" * 60)
 
-    train_dir, val_dir = prepare_training_data()
+    train_dir, val_dir, test_dir = prepare_training_data()
 
     train_transform, val_transform = get_transforms()
     train_dataset = datasets.ImageFolder(str(train_dir), transform=train_transform)
     val_dataset = datasets.ImageFolder(str(val_dir), transform=val_transform)
+    test_dataset = datasets.ImageFolder(str(test_dir), transform=val_transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     print(f"\nClasses: {train_dataset.classes}")
     print(f"Training samples: {len(train_dataset)}")
     print(f"Validation samples: {len(val_dataset)}")
+    print(f"Test samples: {len(test_dataset)}")
 
     if len(train_dataset) < 10:
         print("WARNING: Very few training samples. Results may be unreliable.")
@@ -201,7 +204,7 @@ def train_model(
         model.load_state_dict(torch.load(best_temp_path, map_location=DEVICE, weights_only=True))
         best_temp_path.unlink()
 
-    _, final_acc, final_preds, final_labels = validate(model, val_loader, criterion)
+    _, final_acc, final_preds, final_labels = validate(model, test_loader, criterion)
 
     report = classification_report(
         final_labels, final_preds,
@@ -214,7 +217,8 @@ def train_model(
     )
     cm = confusion_matrix(final_labels, final_preds)
 
-    print(f"\nBest Validation Accuracy: {final_acc:.2f}%")
+    print(f"\nBest Validation Accuracy: {best_val_acc:.2f}%")
+    print(f"Final Test Accuracy: {final_acc:.2f}%")
     print(f"\nClassification Report:\n{report_str}")
     print(f"Confusion Matrix:\n{cm}")
 
@@ -229,6 +233,7 @@ def train_model(
         "class_to_idx": train_dataset.class_to_idx,
         "metrics": report,
         "best_val_acc": best_val_acc,
+        "test_acc": final_acc,
         "trained_at": timestamp,
     }
 
