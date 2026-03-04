@@ -14,8 +14,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import classification_report, confusion_matrix
-from torch.utils.data import DataLoader
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
+from sklearn.model_selection import StratifiedKFold
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
 from ml.config import (
@@ -25,11 +26,13 @@ from ml.config import (
     IMAGE_SIZE,
     LEARNING_RATE,
     ML_MODELS_DIR,
+    N_FOLDS,
     NUM_CLASSES,
     NUM_EPOCHS,
+    RANDOM_SEED,
     SCHEDULER_PATIENCE,
 )
-from ml.data_prep import cleanup_training_data, prepare_training_data
+from ml.data_prep import cleanup_training_data, prepare_all_data
 from ml.models.classifier import get_model
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -82,13 +85,14 @@ def train_epoch(model, loader, criterion, optimizer):
 
 
 def validate(model, loader, criterion):
-    """Run validation and return loss, accuracy, predictions, and labels."""
+    """Run validation and return loss, accuracy, predictions, labels, and probabilities."""
     model.eval()
     running_loss = 0.0
     correct = 0
     total = 0
     all_preds = []
     all_labels = []
+    all_probs = []
 
     with torch.no_grad():
         for images, labels in loader:
@@ -98,14 +102,16 @@ def validate(model, loader, criterion):
             loss = criterion(outputs, labels)
 
             running_loss += loss.item()
+            probs = torch.softmax(outputs, dim=1)
             _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
+            all_probs.extend(probs.cpu().numpy())
 
-    return running_loss / len(loader), 100 * correct / total, all_preds, all_labels
+    return running_loss / len(loader), 100 * correct / total, all_preds, all_labels, all_probs
 
 
 def train_model(
@@ -115,135 +121,222 @@ def train_model(
     lr: float = LEARNING_RATE,
 ) -> dict:
     """
-    Full training pipeline:
-    1. Download labeled images from S3
-    2. Train the CNN
-    3. Evaluate on validation set
-    4. Save .pth checkpoint
-    5. Clean up temporary data
+    Full training pipeline with 3-fold cross-validation:
+    1. Download all labeled images from S3
+    2. Run N_FOLDS CV folds — train, evaluate, collect metrics per fold
+    3. Print averaged CV metrics and aggregated ROC curve
+    4. Retrain final model on full dataset using avg epochs from CV
+    5. Save .pth checkpoint and clean up
 
     Returns:
-        Dict with model path, architecture, and metrics
+        Dict with model path, architecture, and CV metrics
     """
     print(f"\nUsing device: {DEVICE}")
     print(f"Architecture: {arch}, Epochs: {epochs}, Batch size: {batch_size}, LR: {lr}")
 
-    # --- Step 1: Prepare data from S3 ---
+    # --- Step 1: Download all data from S3 ---
     print("\n" + "=" * 60)
     print("DOWNLOADING TRAINING DATA FROM S3")
     print("=" * 60)
 
-    train_dir, val_dir, test_dir = prepare_training_data()
+    all_dir = prepare_all_data()
 
     train_transform, val_transform = get_transforms()
-    train_dataset = datasets.ImageFolder(str(train_dir), transform=train_transform)
-    val_dataset = datasets.ImageFolder(str(val_dir), transform=val_transform)
-    test_dataset = datasets.ImageFolder(str(test_dir), transform=val_transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    # Two dataset instances of the same directory — one per transform
+    # Subsets index into these, so train indices get augmentation, val indices don't
+    full_train_ds = datasets.ImageFolder(str(all_dir), transform=train_transform)
+    full_val_ds = datasets.ImageFolder(str(all_dir), transform=val_transform)
 
-    print(f"\nClasses: {train_dataset.classes}")
-    print(f"Training samples: {len(train_dataset)}")
-    print(f"Validation samples: {len(val_dataset)}")
-    print(f"Test samples: {len(test_dataset)}")
+    class_names = full_train_ds.classes
+    targets = np.array(full_train_ds.targets)
 
-    if len(train_dataset) < 10:
-        print("WARNING: Very few training samples. Results may be unreliable.")
+    print(f"\nClasses: {class_names}")
+    print(f"Total samples: {len(full_train_ds)}")
 
-    # --- Step 2: Build model ---
-    model = get_model(arch=arch, num_classes=NUM_CLASSES).to(DEVICE)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", patience=SCHEDULER_PATIENCE, factor=0.5
-    )
-
-    # --- Step 3: Training loop ---
+    # --- Step 2: 3-Fold Cross-Validation ---
     print("\n" + "=" * 60)
-    print("TRAINING")
+    print(f"{N_FOLDS}-FOLD CROSS-VALIDATION")
     print("=" * 60)
 
-    best_val_acc = 0.0
-    patience_counter = 0
+    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_SEED)
+    ML_MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    for epoch in range(epochs):
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer)
-        val_loss, val_acc, _, _ = validate(model, val_loader, criterion)
+    fold_results = []
 
-        scheduler.step(val_loss)
+    for fold, (train_idx, val_idx) in enumerate(skf.split(np.zeros(len(targets)), targets)):
+        print(f"\n--- Fold {fold + 1}/{N_FOLDS} ---")
+        print(f"  Train: {len(train_idx)} samples | Val: {len(val_idx)} samples")
 
-        print(
-            f"Epoch {epoch + 1:02d}/{epochs} | "
-            f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
-            f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%"
+        train_loader = DataLoader(
+            Subset(full_train_ds, train_idx), batch_size=batch_size, shuffle=True, num_workers=0
+        )
+        val_loader = DataLoader(
+            Subset(full_val_ds, val_idx), batch_size=batch_size, shuffle=False, num_workers=0
         )
 
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            patience_counter = 0
-            # Save best model to a temp location (will be copied later)
-            ML_MODELS_DIR.mkdir(parents=True, exist_ok=True)
-            torch.save(model.state_dict(), ML_MODELS_DIR / "_best_temp.pth")
-            print(f"  -> New best model (Val Acc: {val_acc:.2f}%)")
-        else:
-            patience_counter += 1
+        # Class weights from this fold's training split
+        fold_targets = targets[train_idx]
+        class_counts = torch.tensor(
+            [np.sum(fold_targets == i) for i in range(len(class_names))],
+            dtype=torch.float,
+        )
+        class_weights = class_counts.sum() / (len(class_counts) * class_counts)
 
-        if patience_counter >= EARLY_STOP_PATIENCE:
-            print(f"\nEarly stopping after {epoch + 1} epochs")
-            break
+        model = get_model(arch=arch, num_classes=NUM_CLASSES).to(DEVICE)
+        criterion = nn.CrossEntropyLoss(weight=class_weights.to(DEVICE))
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", patience=SCHEDULER_PATIENCE, factor=0.5
+        )
 
-    # --- Step 4: Final evaluation with best model ---
+        best_val_acc = 0.0
+        patience_counter = 0
+        best_epoch = 0
+        temp_path = ML_MODELS_DIR / f"_fold{fold + 1}_best.pth"
+
+        for epoch in range(epochs):
+            train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer)
+            val_loss, val_acc, _, _, _ = validate(model, val_loader, criterion)
+            scheduler.step(val_loss)
+
+            print(
+                f"  Epoch {epoch + 1:02d}/{epochs} | "
+                f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
+                f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%"
+            )
+
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                patience_counter = 0
+                best_epoch = epoch + 1
+                torch.save(model.state_dict(), temp_path)
+                print(f"    -> New best (Val Acc: {val_acc:.2f}%)")
+            else:
+                patience_counter += 1
+
+            if patience_counter >= EARLY_STOP_PATIENCE:
+                print(f"  Early stopping at epoch {epoch + 1}")
+                break
+
+        # Evaluate best model for this fold
+        if temp_path.exists():
+            model.load_state_dict(torch.load(temp_path, map_location=DEVICE, weights_only=True))
+            temp_path.unlink()
+
+        _, fold_acc, fold_preds, fold_labels, fold_probs = validate(model, val_loader, criterion)
+
+        cm = confusion_matrix(fold_labels, fold_preds)
+        tn, fp, fn, tp = cm.ravel()
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+        pos_probs = [p[1] for p in fold_probs]
+        auc = roc_auc_score(fold_labels, pos_probs)
+
+        print(
+            f"\n  Fold {fold + 1} Results — "
+            f"Acc: {fold_acc:.2f}% | Sensitivity: {sensitivity:.4f} | "
+            f"Specificity: {specificity:.4f} | AUC: {auc:.4f}"
+        )
+
+        fold_results.append({
+            "fold": fold + 1,
+            "acc": fold_acc,
+            "sensitivity": sensitivity,
+            "specificity": specificity,
+            "auc": auc,
+            "best_epoch": best_epoch,
+            "preds": fold_preds,
+            "labels": fold_labels,
+            "probs": fold_probs,
+        })
+
+    # --- Step 3: Print CV summary ---
     print("\n" + "=" * 60)
-    print("FINAL EVALUATION")
+    print(f"{N_FOLDS}-FOLD CROSS-VALIDATION SUMMARY")
     print("=" * 60)
 
-    best_temp_path = ML_MODELS_DIR / "_best_temp.pth"
-    if best_temp_path.exists():
-        model.load_state_dict(torch.load(best_temp_path, map_location=DEVICE, weights_only=True))
-        best_temp_path.unlink()
+    for r in fold_results:
+        print(
+            f"  Fold {r['fold']} — Acc: {r['acc']:.2f}% | "
+            f"Sensitivity: {r['sensitivity']:.4f} | Specificity: {r['specificity']:.4f} | "
+            f"AUC: {r['auc']:.4f}"
+        )
 
-    _, final_acc, final_preds, final_labels = validate(model, test_loader, criterion)
+    mean_acc = np.mean([r["acc"] for r in fold_results])
+    mean_sensitivity = np.mean([r["sensitivity"] for r in fold_results])
+    mean_specificity = np.mean([r["specificity"] for r in fold_results])
+    mean_auc = np.mean([r["auc"] for r in fold_results])
+    avg_best_epoch = int(round(np.mean([r["best_epoch"] for r in fold_results])))
 
-    report = classification_report(
-        final_labels, final_preds,
-        target_names=train_dataset.classes,
-        output_dict=True,
+    print(f"\n  Mean Accuracy:    {mean_acc:.2f}%")
+    print(f"  Mean Sensitivity: {mean_sensitivity:.4f}")
+    print(f"  Mean Specificity: {mean_specificity:.4f}")
+    print(f"  Mean AUC-ROC:     {mean_auc:.4f}")
+    print(f"  Avg Best Epoch:   {avg_best_epoch}")
+
+    # Aggregate all fold predictions for overall report and ROC curve
+    all_preds = [p for r in fold_results for p in r["preds"]]
+    all_labels = [l for r in fold_results for l in r["labels"]]
+    all_probs = [p for r in fold_results for p in r["probs"]]
+
+    report = classification_report(all_labels, all_preds, target_names=class_names, output_dict=True)
+    report_str = classification_report(all_labels, all_preds, target_names=class_names)
+    cm_all = confusion_matrix(all_labels, all_preds)
+    pos_probs_all = [p[1] for p in all_probs]
+    fpr, tpr, thresholds = roc_curve(all_labels, pos_probs_all)
+
+    print(f"\nAggregated Classification Report:\n{report_str}")
+    print(f"Aggregated Confusion Matrix:\n{cm_all}")
+    print(f"\nROC Curve (aggregated, FPR -> TPR @ threshold):")
+    step = max(1, len(fpr) // 10)
+    for i in range(0, len(fpr), step):
+        print(f"  FPR: {fpr[i]:.3f}  TPR: {tpr[i]:.3f}  Threshold: {thresholds[i]:.3f}")
+
+    # --- Step 4: Retrain final model on full dataset ---
+    print("\n" + "=" * 60)
+    print("FINAL MODEL TRAINING (full dataset)")
+    print("=" * 60)
+    print(f"Training for {avg_best_epoch} epochs (avg best epoch across folds)")
+
+    full_loader = DataLoader(full_train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
+
+    class_counts_full = torch.tensor(
+        [full_train_ds.targets.count(i) for i in range(len(class_names))],
+        dtype=torch.float,
     )
-    report_str = classification_report(
-        final_labels, final_preds,
-        target_names=train_dataset.classes,
-    )
-    cm = confusion_matrix(final_labels, final_preds)
+    class_weights_full = class_counts_full.sum() / (len(class_counts_full) * class_counts_full)
 
-    print(f"\nBest Validation Accuracy: {best_val_acc:.2f}%")
-    print(f"Final Test Accuracy: {final_acc:.2f}%")
-    print(f"\nClassification Report:\n{report_str}")
-    print(f"Confusion Matrix:\n{cm}")
+    final_model = get_model(arch=arch, num_classes=NUM_CLASSES).to(DEVICE)
+    final_criterion = nn.CrossEntropyLoss(weight=class_weights_full.to(DEVICE))
+    final_optimizer = optim.Adam(final_model.parameters(), lr=lr)
 
-    # --- Step 5: Save final checkpoint ---
+    for epoch in range(avg_best_epoch):
+        train_loss, train_acc = train_epoch(final_model, full_loader, final_criterion, final_optimizer)
+        print(f"  Epoch {epoch + 1:02d}/{avg_best_epoch} | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
+
+    # --- Step 5: Save checkpoint ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_filename = f"{arch}_{timestamp}.pth"
 
     checkpoint = {
-        "model_state_dict": model.state_dict(),
+        "model_state_dict": final_model.state_dict(),
         "arch": arch,
         "num_classes": NUM_CLASSES,
-        "class_to_idx": train_dataset.class_to_idx,
+        "class_to_idx": full_train_ds.class_to_idx,
         "metrics": report,
-        "best_val_acc": best_val_acc,
-        "test_acc": final_acc,
+        "cv_mean_acc": mean_acc,
+        "cv_mean_auc": mean_auc,
+        "cv_mean_sensitivity": mean_sensitivity,
+        "cv_mean_specificity": mean_specificity,
         "trained_at": timestamp,
     }
 
     model_path = ML_MODELS_DIR / model_filename
     torch.save(checkpoint, model_path)
-
     latest_path = ML_MODELS_DIR / "latest.pth"
     torch.save(checkpoint, latest_path)
 
-    # Verify the files were actually saved
     if model_path.exists() and latest_path.exists():
         size_mb = model_path.stat().st_size / (1024 * 1024)
         print(f"\n{'=' * 60}")
@@ -253,13 +346,10 @@ def train_model(
         print(f"  Latest: {latest_path}")
         print(f"  Size: {size_mb:.1f} MB")
         print(f"  Architecture: {arch}")
-        print(f"  Best Val Acc: {best_val_acc:.2f}%")
+        print(f"  CV Mean Acc: {mean_acc:.2f}% | CV Mean AUC: {mean_auc:.4f}")
         print(f"{'=' * 60}")
     else:
         print(f"\nWARNING: Model save FAILED!")
-        print(f"  Expected path: {model_path}")
-        print(f"  Exists: {model_path.exists()}")
-        print(f"  Latest exists: {latest_path.exists()}")
 
     # --- Step 6: Clean up ---
     cleanup_training_data()
@@ -267,8 +357,10 @@ def train_model(
     return {
         "model_path": str(model_path),
         "architecture": arch,
-        "epochs": epochs,
-        "best_val_acc": best_val_acc,
+        "cv_mean_acc": mean_acc,
+        "cv_mean_auc": mean_auc,
+        "cv_mean_sensitivity": mean_sensitivity,
+        "cv_mean_specificity": mean_specificity,
         "metrics": report,
     }
 
@@ -292,4 +384,4 @@ if __name__ == "__main__":
         lr=args.lr,
     )
 
-    print(f"\nTraining complete. Best Val Acc: {results['best_val_acc']:.2f}%")
+    print(f"\nTraining complete. CV Mean Acc: {results['cv_mean_acc']:.2f}% | CV Mean AUC: {results['cv_mean_auc']:.4f}")

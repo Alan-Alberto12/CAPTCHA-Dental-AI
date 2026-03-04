@@ -98,6 +98,49 @@ def prepare_training_data() -> Tuple[Path, Path, Path]:
     return train_dir, val_dir, test_dir
 
 
+def prepare_all_data() -> Path:
+    """
+    Download all labeled images from S3 into a single ImageFolder structure
+    without any train/val/test splitting. Used for cross-validation.
+
+    Returns:
+        Path to all_dir, organized as all_dir/label/image.jpg
+    """
+    cleanup_training_data()
+
+    all_dir = TRAINING_DATA_DIR / "all"
+    total_downloaded = 0
+
+    for label, prefix in S3_LABEL_PREFIXES.items():
+        print(f"Listing images for label '{label}' (prefix: {prefix})...")
+        urls = s3_service.list_objects(prefix)
+
+        if not urls:
+            print(f"  WARNING: No images found under prefix '{prefix}'")
+            continue
+
+        print(f"  Found {len(urls)} images")
+        label_dir = all_dir / label
+        label_dir.mkdir(parents=True, exist_ok=True)
+
+        for url in urls:
+            filename = os.path.basename(url)
+            local_path = str(label_dir / filename)
+            if s3_service.download_file(url, local_path):
+                total_downloaded += 1
+
+    print(f"Downloaded {total_downloaded} images total")
+
+    if total_downloaded == 0:
+        raise RuntimeError(
+            "No images were downloaded from S3. "
+            "Check that your S3 bucket has images under the prefixes: "
+            f"{list(S3_LABEL_PREFIXES.values())}"
+        )
+
+    return all_dir
+
+
 def cleanup_training_data():
     """Remove temporary training data directory."""
     if TRAINING_DATA_DIR.exists():
