@@ -5,7 +5,6 @@ AWS S3 service for handling image uploads
 import boto3
 from botocore.exceptions import ClientError
 import logging
-import os
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -21,8 +20,7 @@ class S3Service:
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_REGION,
-            endpoint_url=f'https://s3.{settings.AWS_REGION}.amazonaws.com'
+            region_name=settings.AWS_REGION
         )
         self.bucket_name = settings.AWS_S3_BUCKET
 
@@ -95,79 +93,6 @@ class S3Service:
 
         except (ClientError, IndexError) as e:
             logger.error(f"Failed to delete file from S3: {str(e)}")
-            return False
-
-    def download_file(self, file_url: str, local_path: str) -> bool:
-        """
-        Download a file from S3 to a local path.
-
-        Args:
-            file_url: Full S3 URL of the file
-            local_path: Local filesystem path to save the file
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            key = file_url.split(
-                f"{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/"
-            )[1]
-
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            self.s3_client.download_file(self.bucket_name, key, local_path)
-            logger.info(f"Downloaded {key} to {local_path}")
-            return True
-
-        except (ClientError, IndexError) as e:
-            logger.error(f"Failed to download file from S3: {str(e)}")
-            return False
-
-    def list_objects(self, prefix: str) -> list[str]:
-        """
-        List all object keys under a given prefix in the S3 bucket.
-
-        Args:
-            prefix: S3 key prefix (e.g., "needs_review/", "no_review/")
-
-        Returns:
-            List of full S3 URLs for matching objects
-        """
-        try:
-            keys = []
-            paginator = self.s3_client.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
-                for obj in page.get("Contents", []):
-                    key = obj["Key"]
-                    # Skip directory markers
-                    if key.endswith("/"):
-                        continue
-                    url = f"https://{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
-                    keys.append(url)
-
-            logger.info(f"Found {len(keys)} objects under prefix '{prefix}'")
-            return keys
-
-        except ClientError as e:
-            logger.error(f"Failed to list objects with prefix '{prefix}': {str(e)}")
-            return []
-
-    def download_file_by_key(self, key: str, local_path: str) -> bool:
-        """
-        Download a file from S3 using its key directly.
-
-        Args:
-            key: The S3 object key
-            local_path: Local filesystem path to save the file
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            self.s3_client.download_file(self.bucket_name, key, local_path)
-            return True
-        except ClientError as e:
-            logger.error(f"Failed to download {key}: {str(e)}")
             return False
 
     def generate_presigned_url(self, file_url: str, expiration: int = 3600) -> Optional[str]:
