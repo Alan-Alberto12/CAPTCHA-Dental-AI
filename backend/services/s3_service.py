@@ -20,7 +20,8 @@ class S3Service:
             's3',
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_REGION
+            region_name=settings.AWS_REGION,
+            endpoint_url=f'https://s3.{settings.AWS_REGION}.amazonaws.com'
         )
         self.bucket_name = settings.AWS_S3_BUCKET
 
@@ -80,6 +81,7 @@ class S3Service:
             # Extract the key (filename) from the URL
             # URL format: https://bucket.s3.region.amazonaws.com/folder/filename.jpg
             key = file_url.split(f"{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/")[1]
+            key = key.replace('+', ' ')  # S3 console URLs encode spaces as +
 
             # Delete from S3
             self.s3_client.delete_object(
@@ -108,6 +110,7 @@ class S3Service:
         try:
             # Extract the key from the URL
             key = file_url.split(f"{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/")[1]
+            key = key.replace('+', ' ')  # S3 console URLs encode spaces as +
 
             # Generate presigned URL
             presigned_url = self.s3_client.generate_presigned_url(
