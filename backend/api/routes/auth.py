@@ -59,7 +59,7 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
     """Register a new user and send confirmation email automatically."""
     # Check if user already exists
     existing_user = db.query(User).filter(
-        (User.email == user_data.email) | (User.username == user_data.username)
+        (func.lower(User.email) == user_data.email.lower()) | (User.username == user_data.username)
     ).first()
 
     if existing_user:
@@ -71,7 +71,7 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
-        email=user_data.email,
+        email=user_data.email.lower(),
         username=user_data.username,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
@@ -103,10 +103,13 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login and get access token."""
-    # Find user by email or username (using username field from OAuth2 form)
-    user = db.query(User).filter(
-        (User.email == form_data.username) | (User.username == form_data.username)
-    ).first()
+    login_input = form_data.username
+    if "@" in login_input:
+        #email - capilatization does not matter
+        user = db.query(User).filter(func.lower(User.email) == login_input.lower()).first()
+    else:
+        #username - capitalization DOES matter
+        user = db.query(User).filter(User.username == login_input).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
