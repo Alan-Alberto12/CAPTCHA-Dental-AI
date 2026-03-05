@@ -80,11 +80,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # --- email (MailHog in dev) ---
-    SMTP_HOST: str = "mailhog"
-    SMTP_PORT: int = 1025
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
+    # --- email (Brevo SMTP) ---
+    SMTP_HOST: str = "smtp-relay.brevo.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
     MAIL_FROM: str = "no-reply@captcha.local"
 
     # --- AWS S3 ---
