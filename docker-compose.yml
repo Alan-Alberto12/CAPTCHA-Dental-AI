@@ -37,6 +37,15 @@ services:
       db:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    # Uncomment the block below ONLY on Linux machines with an Nvidia GPU and nvidia-container-toolkit installed.
+    # On macOS (Apple Silicon or Intel), this will cause Docker to fail — leave it commented out.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   # React Frontend
   frontend:
