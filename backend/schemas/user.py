@@ -137,12 +137,17 @@ class QuestionResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     user_id: int
+    title: Optional[str] = None
     is_completed: bool
     started_at: datetime
     completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class SessionTitleUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
 
 
 class AnnotationCreate(BaseModel):
