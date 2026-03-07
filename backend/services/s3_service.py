@@ -95,6 +95,46 @@ class S3Service:
             logger.error(f"Failed to delete file from S3: {str(e)}")
             return False
 
+    def list_objects(self, prefix: str) -> list:
+        """
+        List all object URLs in the bucket under the given prefix.
+
+        Returns:
+            List of full S3 URLs
+        """
+        urls = []
+        try:
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    if key.endswith("/"):
+                        continue  # skip folder entries
+                    url = f"https://{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/{key}"
+                    urls.append(url)
+        except ClientError as e:
+            logger.error(f"Failed to list objects with prefix '{prefix}': {str(e)}")
+        return urls
+
+    def download_file(self, file_url: str, local_path: str) -> bool:
+        """
+        Download a file from S3 to a local path.
+
+        Args:
+            file_url: Full S3 URL of the file
+            local_path: Local filesystem path to save the file
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            key = file_url.split(f"{self.bucket_name}.s3.{settings.AWS_REGION}.amazonaws.com/")[1]
+            self.s3_client.download_file(self.bucket_name, key, local_path)
+            return True
+        except (ClientError, IndexError) as e:
+            logger.error(f"Failed to download {file_url}: {str(e)}")
+            return False
+
     def generate_presigned_url(self, file_url: str, expiration: int = 3600) -> Optional[str]:
         """
         Generate a presigned URL for temporary access to a private S3 object

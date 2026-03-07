@@ -35,7 +35,12 @@ from ml.config import (
 from ml.data_prep import cleanup_training_data, prepare_all_data
 from ml.models.classifier import get_model
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    DEVICE = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    DEVICE = torch.device("mps")
+else:
+    DEVICE = torch.device("cpu")
 
 
 def get_transforms():
