@@ -39,7 +39,7 @@ class UserResponse(UserBase):
     id: int
     challenge_id: int
     answer: str
-    is_correct: bool | None
+    is_correct: Optional[bool]
     created_at: datetime
 
     class Config:
@@ -137,12 +137,17 @@ class QuestionResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     user_id: int
+    title: Optional[str] = None
     is_completed: bool
     started_at: datetime
     completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class SessionTitleUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
 
 
 class AnnotationCreate(BaseModel):
@@ -195,18 +200,3 @@ class ChallengeResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# ML prediction schemas
-class PredictionResponse(BaseModel):
-    prediction_id: int
-    image_id: int
-    label: str
-    confidence: float
-    model: str
-
-
-class ModelStatusResponse(BaseModel):
-    available: bool
-    architecture: Optional[str] = None
-    best_val_acc: Optional[float] = None

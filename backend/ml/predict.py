@@ -26,7 +26,12 @@ class PredictionService:
 
     def __init__(self):
         self.model = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
         self.transform = transforms.Compose([
             transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
             transforms.ToTensor(),
@@ -102,6 +107,12 @@ class PredictionService:
             confidence, predicted_idx = torch.max(probabilities, 1)
 
         predicted_label = self.idx_to_class[predicted_idx.item()]
+
+        label_map = {
+            "good_quality": "needs_expert_review",
+            "bad_quality": "does_not_need_expert_review",
+        }
+        predicted_label = label_map.get(predicted_label, predicted_label)
 
         return {
             "label": predicted_label,

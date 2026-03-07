@@ -17,14 +17,17 @@ S3_LABEL_PREFIXES = {
 }
 
 # Model defaults
-DEFAULT_MODEL_ARCH = "resnet50"  # resnet50 | efficientnet_b0 | densenet121
+DEFAULT_MODEL_ARCH = "efficientnet_b0"  # resnet50 | efficientnet_b0 | densenet121
 NUM_CLASSES = 2
 IMAGE_SIZE = 224
 BATCH_SIZE = 32
-NUM_EPOCHS = 20
-LEARNING_RATE = 0.001
+NUM_EPOCHS = 100
+LEARNING_RATE = 0.0001
 TRAIN_SPLIT = 0.8
+VAL_SPLIT = 0.1
+TEST_SPLIT = 0.1
 RANDOM_SEED = 42
+N_FOLDS = 3
 
 # Early stopping
 EARLY_STOP_PATIENCE = 7

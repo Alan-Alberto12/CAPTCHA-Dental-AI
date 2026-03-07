@@ -10,7 +10,7 @@ import hashlib
 from services.database import get_db
 from services.s3_service import s3_service
 from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, settings
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, SessionTitleUpdate, settings
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -374,6 +374,46 @@ def get_current_session(
         "started_at": session.started_at
     }
 
+@router.get("/sessions/completed")
+def get_completed_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all completed sessions for the current user to display on Dashboard"""
+    
+    sessions = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.is_completed == True
+    ).order_by(AnnotationSession.completed_at.desc()).all()
+
+    result = []
+    for session in sessions:
+        # Get question count for this session
+        question_count = db.query(SessionQuestion).filter(
+            SessionQuestion.session_id == session.id
+        ).count()
+
+        #get the first image for this session (thumbnail on Dashboard tab)
+        session_first_image = db.query(SessionImage).filter(
+            SessionImage.session_id == session.id
+        ).order_by(SessionImage.image_order).first()
+
+        thumbnail_url = None
+        if session_first_image:
+            image = db.query(Image).filter(Image.id == session_first_image.image_id).first()
+            if image:
+                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+
+        result.append({
+            "session_id": session.id,
+            "title": session.title,
+            "started_at": session.started_at,
+            "completed_at": session.completed_at,
+            "question_count": question_count,
+            "thumbnail_url": thumbnail_url
+        })
+
+    return result
 
 @router.get("/sessions/next")
 def get_next_session(
@@ -641,6 +681,36 @@ def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depen
         .all()
     )
     return annotations
+
+
+@router.patch("/sessions/{session_id}/title")
+def update_session_title(
+    session_id: int,
+    payload: SessionTitleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update the title of a completed session"""
+    session = db.query(AnnotationSession).filter(AnnotationSession.id == session_id).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This session doesn't belong to you")
+
+    if not session.is_completed:
+        raise HTTPException(status_code=400, detail="Can only title completed sessions")
+
+    session.title = payload.title
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session.id,
+        "title": session.title,
+        "message": "Session title updated successfully"
+    }
 
 
 @router.post("/admin/import-images-url", status_code=201)

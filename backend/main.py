@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth, ml
+from api.routes import auth
 from services.database import engine, Base
 from models.user import User
 # TODO: Uncomment when these modules are created
@@ -30,7 +30,6 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
-app.include_router(ml.router)
 
 @app.get("/")
 async def root():
