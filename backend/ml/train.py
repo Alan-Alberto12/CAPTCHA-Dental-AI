@@ -10,6 +10,10 @@ Usage (from backend/ directory):
 import argparse
 from datetime import datetime
 
+# matplotlib: used to save ROC curve plot after cross-validation
+import matplotlib
+matplotlib.use("Agg")  # non-interactive backend for saving files
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -41,6 +45,41 @@ elif torch.backends.mps.is_available():
     DEVICE = torch.device("mps")
 else:
     DEVICE = torch.device("cpu")
+
+
+def save_roc_curve(fpr, tpr, auc_score, fold_results, output_path):
+    """
+    Save ROC curve plot to a PNG file.
+    Called after cross-validation using the aggregated held-out predictions.
+    Plots each fold's curve (for variance context) plus the aggregated curve.
+    """
+    fig, ax = plt.subplots(figsize=(7, 6))
+
+    # Per-fold curves (light, for context)
+    for r in fold_results:
+        fold_probs = [p[1] for p in r["probs"]]
+        f_fpr, f_tpr, _ = roc_curve(r["labels"], fold_probs)
+        ax.plot(f_fpr, f_tpr, color="steelblue", alpha=0.3, linewidth=1,
+                label=f"Fold {r['fold']} (AUC={r['auc']:.3f})")
+
+    # Aggregated curve across all folds (bold)
+    ax.plot(fpr, tpr, color="crimson", linewidth=2.5,
+            label=f"Aggregated CV (AUC={auc_score:.3f})")
+
+    # Diagonal reference line (random classifier baseline)
+    ax.plot([0, 1], [0, 1], "k--", linewidth=1, label="Random classifier")
+
+    ax.set_xlabel("False Positive Rate", fontsize=12)
+    ax.set_ylabel("True Positive Rate", fontsize=12)
+    ax.set_title("ROC Curve — EfficientNet-B0 (Cross-Validation)", fontsize=13)
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(alpha=0.3)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1.02])
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
 
 
 def get_transforms():
@@ -297,6 +336,11 @@ def train_model(
     step = max(1, len(fpr) // 10)
     for i in range(0, len(fpr), step):
         print(f"  FPR: {fpr[i]:.3f}  TPR: {tpr[i]:.3f}  Threshold: {thresholds[i]:.3f}")
+
+    # Save ROC curve plot — uses aggregated CV predictions (validation set, not training data)
+    roc_plot_path = ML_MODELS_DIR / "roc_curve.png"
+    save_roc_curve(fpr, tpr, mean_auc, fold_results, roc_plot_path)
+    print(f"\n  ROC curve saved to: {roc_plot_path}")
 
     # --- Step 4: Retrain final model on full dataset ---
     print("\n" + "=" * 60)
