@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePresignedImages } from "../hooks/usePresignedImages";
 import PresignedImage from "../components/PresignedImage";
+import { API_URL } from '../config';
+
 
 /**
  * PlayPage - Image Selection/Annotation System
@@ -43,7 +45,7 @@ export default function PlayPage() {
             const token = localStorage.getItem("token");
             if (!token) return null;
 
-            const response = await fetch("http://127.0.0.1:8000/auth/sessions/current", {
+            const response = await fetch(`${API_URL}/auth/sessions/current`, {
                 method: "GET",
                 headers: { "Authorization": `Bearer ${token}` }
             });
@@ -85,8 +87,8 @@ export default function PlayPage() {
             }
 
             const url = forceNew
-                ? "http://127.0.0.1:8000/auth/sessions/next?force_new=true"
-                : "http://127.0.0.1:8000/auth/sessions/next";
+                ? `${API_URL}/auth/sessions/next?force_new=true`
+                : `${API_URL}/auth/sessions/next`;
 
             const response = await fetch(url, {
                 method: "GET",
@@ -170,7 +172,7 @@ export default function PlayPage() {
         try {
             const token = localStorage.getItem("token");
 
-            const response = await fetch("http://127.0.0.1:8000/auth/annotations", {
+            const response = await fetch(`${API_URL}/auth/annotations`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -259,7 +261,7 @@ export default function PlayPage() {
         setIsSavingTitle(true);
         try {
             const token = localStorage.getItem("token");
-            const response = await fetch(`http://127.0.0.1:8000/auth/sessions/${session.session_id}/title`, {
+            const response = await fetch(`${API_URL}/auth/sessions/${session.session_id}/title`, {
                 method: "PATCH",
                 headers: {
                     "Authorization": `Bearer ${token}`,
