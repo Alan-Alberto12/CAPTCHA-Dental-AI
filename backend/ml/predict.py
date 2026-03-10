@@ -108,12 +108,6 @@ class PredictionService:
 
         predicted_label = self.idx_to_class[predicted_idx.item()]
 
-        label_map = {
-            "good_quality": "needs_expert_review",
-            "bad_quality": "does_not_need_expert_review",
-        }
-        predicted_label = label_map.get(predicted_label, predicted_label)
-
         return {
             "label": predicted_label,
             "confidence": round(confidence.item(), 4),
