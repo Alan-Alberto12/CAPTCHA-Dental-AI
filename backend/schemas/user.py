@@ -39,7 +39,7 @@ class UserResponse(UserBase):
     id: int
     challenge_id: int
     answer: str
-    is_correct: bool | None
+    is_correct: Optional[bool]
     created_at: datetime
 
     class Config:
@@ -83,8 +83,8 @@ class Settings(BaseSettings):
     # --- email (MailHog in dev) ---
     SMTP_HOST: str = "mailhog"
     SMTP_PORT: int = 1025
-    SMTP_USER: str | None = None
-    SMTP_PASSWORD: str | None = None
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
     MAIL_FROM: str = "no-reply@captcha.local"
 
     # --- AWS S3 ---
