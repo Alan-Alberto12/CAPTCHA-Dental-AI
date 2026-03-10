@@ -17,10 +17,17 @@ def main():
     parser.add_argument("--prefix", required=True, help="S3 folder prefix (e.g. 'images/')")
     parser.add_argument("--min-confidence", type=float, default=0.0,
                         help="Only show results above this confidence (0.0 - 1.0)")
+    parser.add_argument("--store-in-db", action="store_true",
+                        help="Save images that get needs_expert_review in the db")
     args = parser.parse_args()
 
     from ml.predict import PredictionService
     from services.s3_service import s3_service
+
+    if args.store_in_db:
+        from services.database import SessionLocal
+        from models.user import Image
+        db = SessionLocal()
 
     # Load model
     service = PredictionService.get_instance()
@@ -67,8 +74,17 @@ def main():
 
             if label == "needs_expert_review":
                 needs_review.append((filename, confidence))
+                if args.store_in_db:
+                    existing = db.query(Image).filter(Image.filename == filename).first()
+                    if not existing:
+                        db.add(Image(filename=filename, image_url=url))
+                        db.commit()
+                        print(f"Stored in DB: ")
+                    else:
+                        print(f"Already in DB: ")
             else:
                 does_not_need_review.append((filename, confidence))
+                print(f"Discarded: ")
 
             print(f"{filename:<50} {label:<35} {confidence:>10.4f}")
 
@@ -90,6 +106,9 @@ def main():
     print(f"  total processed:            {total:>4} images")
     print("=" * 97)
 
+    if args.store_in_db:
+        db.close()
 
 if __name__ == "__main__":
     main()
+
