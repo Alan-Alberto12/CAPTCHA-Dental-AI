@@ -758,11 +758,22 @@ def import_images_url(
 async def import_images_file(
     files: list[UploadFile] = File(...),
     folder_name: str = "images",
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """Upload single or multiple image files to S3 (admin only)"""
+    """Upload single or multiple image files to S3 (admin only).
 
-    # Check admin
+    Images predicted as needs_expert_review are also saved to the DB.
+    Images predicted as does_not_need_expert_review are stored in S3 only.
+    If no trained model is available, all images are saved to the DB.
+    """
+    try:
+        from ml.predict import PredictionService
+        _ml_available = True
+    except Exception:
+        PredictionService = None
+        _ml_available = False
+
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -773,11 +784,19 @@ async def import_images_file(
     ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per image
 
+    if _ml_available:
+        prediction_service = PredictionService.get_instance()
+        if prediction_service.model is None:
+            prediction_service.load_model()
+        model_available = prediction_service.model is not None
+    else:
+        prediction_service = None
+        model_available = False
+
     results = []
     failed = []
 
     def upload_image(filename: str, file_data: bytes, content_type: str):
-        """Upload a single image to S3 only. Returns (result_dict, error_dict)."""
         if len(file_data) > MAX_FILE_SIZE:
             return None, {"filename": filename, "error": f"File too large ({len(file_data)} bytes). Max: {MAX_FILE_SIZE}"}
 
@@ -790,21 +809,37 @@ async def import_images_file(
         if not s3_url:
             return None, {"filename": filename, "error": "Failed to upload to S3"}
 
-        return {"filename": filename, "image_url": s3_url}, None
+        label = "needs_expert_review"
+        confidence = None
+        if model_available:
+            try:
+                pred = prediction_service.predict(file_data)
+                label = pred["label"]
+                confidence = pred["confidence"]
+            except Exception:
+                pass
+
+        saved_to_db = False
+        if label == "needs_expert_review":
+            existing = db.query(Image).filter(Image.filename == filename).first()
+            if not existing:
+                db.add(Image(filename=filename, image_url=s3_url))
+                db.commit()
+            saved_to_db = True
+
+        return {"filename": filename, "image_url": s3_url, "label": label, "confidence": confidence, "saved_to_db": saved_to_db}, None
 
     for file in files:
         try:
             file_data = await file.read()
 
-            # --- ZIP: extract and upload each image inside ---
             if file.filename.lower().endswith(".zip") or file.content_type in ("application/zip", "application/x-zip-compressed"):
                 try:
                     with zipfile.ZipFile(io.BytesIO(file_data)) as zf:
                         for entry in zf.infolist():
                             if entry.is_dir():
                                 continue
-                            inner_name = entry.filename.split("/")[-1]  # strip folder paths inside zip
-                            # skip macOS metadata files and hidden files
+                            inner_name = entry.filename.split("/")[-1]
                             if inner_name.startswith("._") or inner_name.startswith("."):
                                 continue
                             ext = "." + inner_name.rsplit(".", 1)[-1].lower() if "." in inner_name else ""
@@ -821,7 +856,6 @@ async def import_images_file(
                     failed.append({"filename": file.filename, "error": "Invalid or corrupted ZIP file"})
                 continue
 
-            # --- Single image ---
             if file.content_type not in ALLOWED_TYPES:
                 failed.append({"filename": file.filename, "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, ZIP"})
                 continue
@@ -833,13 +867,14 @@ async def import_images_file(
                 results.append(result)
 
         except Exception as e:
-            failed.append({
-                "filename": file.filename,
-                "error": str(e)
-            })
+            failed.append({"filename": file.filename, "error": str(e)})
+
+    saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
 
     return {
         "uploaded": len(results),
+        "saved_to_db": saved_to_db_count,
+        "s3_only": len(results) - saved_to_db_count,
         "failed": len(failed),
         "folder": folder_name,
         "results": results,
