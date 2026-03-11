@@ -6,6 +6,8 @@ from sqlalchemy import func
 from datetime import timedelta, datetime, timezone
 import secrets
 import hashlib
+import zipfile
+import io
 
 from services.database import get_db
 from services.s3_service import s3_service
@@ -756,7 +758,6 @@ def import_images_url(
 async def import_images_file(
     files: list[UploadFile] = File(...),
     folder_name: str = "images",
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Upload single or multiple image files to S3 (admin only)"""
@@ -768,63 +769,68 @@ async def import_images_file(
             detail="Only administrators can upload images"
         )
 
-    # Validate file types
-    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"}
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per image
 
     results = []
     failed = []
 
+    def upload_image(filename: str, file_data: bytes, content_type: str):
+        """Upload a single image to S3 only. Returns (result_dict, error_dict)."""
+        if len(file_data) > MAX_FILE_SIZE:
+            return None, {"filename": filename, "error": f"File too large ({len(file_data)} bytes). Max: {MAX_FILE_SIZE}"}
+
+        s3_url = s3_service.upload_file(
+            file_data=file_data,
+            filename=filename,
+            content_type=content_type,
+            folder=folder_name
+        )
+        if not s3_url:
+            return None, {"filename": filename, "error": "Failed to upload to S3"}
+
+        return {"filename": filename, "image_url": s3_url}, None
+
     for file in files:
         try:
-            # Validate content type
-            if file.content_type not in ALLOWED_TYPES:
-                failed.append({
-                    "filename": file.filename,
-                    "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP"
-                })
-                continue
-
-            # Read file data
             file_data = await file.read()
 
-            # Validate file size
-            if len(file_data) > MAX_FILE_SIZE:
-                failed.append({
-                    "filename": file.filename,
-                    "error": f"File too large: {len(file_data)} bytes. Max: {MAX_FILE_SIZE} bytes"
-                })
+            # --- ZIP: extract and upload each image inside ---
+            if file.filename.lower().endswith(".zip") or file.content_type in ("application/zip", "application/x-zip-compressed"):
+                try:
+                    with zipfile.ZipFile(io.BytesIO(file_data)) as zf:
+                        for entry in zf.infolist():
+                            if entry.is_dir():
+                                continue
+                            inner_name = entry.filename.split("/")[-1]  # strip folder paths inside zip
+                            # skip macOS metadata files and hidden files
+                            if inner_name.startswith("._") or inner_name.startswith("."):
+                                continue
+                            ext = "." + inner_name.rsplit(".", 1)[-1].lower() if "." in inner_name else ""
+                            if ext not in ALLOWED_EXTENSIONS:
+                                continue
+                            inner_data = zf.read(entry)
+                            content_type = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext[1:]}"
+                            result, error = upload_image(inner_name, inner_data, content_type)
+                            if error:
+                                failed.append(error)
+                            else:
+                                results.append(result)
+                except zipfile.BadZipFile:
+                    failed.append({"filename": file.filename, "error": "Invalid or corrupted ZIP file"})
                 continue
 
-            # Upload to S3
-            s3_url = s3_service.upload_file(
-                file_data=file_data,
-                filename=file.filename,
-                content_type=file.content_type,
-                folder=folder_name
-            )
-
-            if not s3_url:
-                failed.append({
-                    "filename": file.filename,
-                    "error": "Failed to upload to S3"
-                })
+            # --- Single image ---
+            if file.content_type not in ALLOWED_TYPES:
+                failed.append({"filename": file.filename, "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, ZIP"})
                 continue
 
-            # Save to database
-            image = Image(
-                filename=file.filename,
-                image_url=s3_url
-            )
-            db.add(image)
-            db.commit()
-            db.refresh(image)
-
-            results.append({
-                "id": image.id,
-                "filename": image.filename,
-                "image_url": image.image_url
-            })
+            result, error = upload_image(file.filename, file_data, file.content_type)
+            if error:
+                failed.append(error)
+            else:
+                results.append(result)
 
         except Exception as e:
             failed.append({
