@@ -22,7 +22,7 @@ echo -e "${GREEN}✓${NC} Docker is running\n"
 
 # Step 2: Start containers
 echo -e "${YELLOW}[2/4]${NC} Starting Docker containers..."
-docker-compose up -d
+docker compose up -d
 echo -e "${GREEN}✓${NC} Containers started\n"
 
 # Wait for database to be ready
@@ -32,7 +32,7 @@ echo -e "${GREEN}✓${NC} Database ready\n"
 
 # Step 3: Run migrations
 echo -e "${YELLOW}[3/4]${NC} Applying database migrations..."
-./migrate.sh upgrade
+"$(dirname "$0")/migrate.sh" upgrade
 echo -e "${GREEN}✓${NC} Migrations applied\n"
 
 # Step 4: Seed database
