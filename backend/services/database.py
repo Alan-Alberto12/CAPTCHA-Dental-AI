@@ -5,7 +5,8 @@ import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://captcha_user:captcha_password@localhost:5432/captcha_dental_db")
 
-engine = create_engine(DATABASE_URL)
+_ssl = {"sslmode": "require"} if "neon.tech" in DATABASE_URL else {}
+engine = create_engine(DATABASE_URL, connect_args=_ssl)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
