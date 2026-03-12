@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { API_URL } from '../config';
+
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -24,10 +26,10 @@ export default function Dashboard() {
     try {
       //fetch both completed_sessions and current_session endpoints
       const [completedCase, currentCase] = await Promise.all([
-        fetch('http://127.0.0.1:8000/auth/sessions/completed', {
+        fetch(`${API_URL}/auth/sessions/completed`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://127.0.0.1:8000/auth/sessions/current', {
+        fetch(`${API_URL}/auth/sessions/current`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
