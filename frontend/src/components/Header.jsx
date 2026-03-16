@@ -1,6 +1,8 @@
 // frontend/src/components/header.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { API_URL } from '../config';
+
 
 export default function Header( {
     title = "Dental AI",
@@ -19,7 +21,7 @@ export default function Header( {
             }
 
             try {
-                const response = await fetch('http://127.0.0.1:8000/auth/me', {
+                const response = await fetch(`${API_URL}/auth/me`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                     },

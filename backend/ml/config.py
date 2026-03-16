@@ -12,8 +12,8 @@ TRAINING_DATA_DIR = BACKEND_DIR / "ml" / "training_data"
 # S3 folder prefixes for each label
 # These should match the folder names in your S3 bucket
 S3_LABEL_PREFIXES = {
-    "bad_quality": "bad_quality/",
-    "good_quality": "good_quality/",
+    "does_not_need_expert_review": "bad_quality/",
+    "needs_expert_review": "good_quality/",
 }
 
 # Model defaults
