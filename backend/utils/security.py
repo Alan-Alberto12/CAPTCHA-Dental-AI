@@ -59,26 +59,63 @@ def hash_reset_token(raw: str) -> str:
     # Hash a raw reset token when created
     return hashlib.sha256(raw.encode()).hexdigest()
 
+def _send_email(msg: EmailMessage) -> None:
+    """Send an email via SMTP. Uses STARTTLS + login when credentials are configured."""
+    with smtplib.SMTP(host=settings.SMTP_HOST, port=settings.SMTP_PORT, timeout=10) as smtp:
+        if settings.SMTP_USER and settings.SMTP_PASSWORD:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        smtp.send_message(msg)
+
 def send_reset_email(to_email: str, reset_link: str):
     msg = EmailMessage()
-    msg["From"] = settings.MAIL_FROM or "no-reply@captcha.local"
+    msg["From"] = settings.MAIL_FROM
     msg["To"] = to_email
-    msg["Subject"] = "Reset your password"
-    msg.set_content(f"Click to reset: {reset_link}")
-
-    with smtplib.SMTP(host=settings.SMTP_HOST, port=settings.SMTP_PORT, timeout=10) as smtp:
-        # DO NOT call smtp.starttls()
-        # DO NOT call smtp.login()
-        smtp.send_message(msg)
+    msg["Subject"] = "Reset your CAPTCHA Dental AI password"
+    msg.set_content(
+        f"You requested a password reset for your CAPTCHA Dental AI account.\n\n"
+        f"Click the link below to reset your password (expires in 30 minutes):\n\n"
+        f"{reset_link}\n\n"
+        f"If you did not request this, you can safely ignore this email."
+    )
+    msg.add_alternative(f"""
+    <html><body style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;">
+      <h2>Reset your password</h2>
+      <p>You requested a password reset for your CAPTCHA Dental AI account.</p>
+      <p>
+        <a href="{reset_link}" style="display:inline-block;padding:12px 24px;background:#6c5ce7;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">
+          Reset Password
+        </a>
+      </p>
+      <p style="color:#888;font-size:13px;">This link expires in 30 minutes. If you did not request this, you can safely ignore this email.</p>
+    </body></html>
+    """, subtype="html")
+    _send_email(msg)
 
 def send_confirmation_email(to_email: str, confirm_link: str):
     """Send email confirmation message with a verification link."""
     msg = EmailMessage()
-    msg["From"] = settings.MAIL_FROM or "no-reply@captcha.local"
+    msg["From"] = settings.MAIL_FROM
     msg["To"] = to_email
     msg["Subject"] = "Confirm your CAPTCHA Dental AI account"
-    msg.set_content(f"Click the link to confirm your email: {confirm_link}")
-
-    with smtplib.SMTP(host=settings.SMTP_HOST, port=settings.SMTP_PORT, timeout=10) as smtp:
-        # Using MailHog or a local dev SMTP (no TLS/login needed)
-        smtp.send_message(msg)
+    msg.set_content(
+        f"Welcome to CAPTCHA Dental AI!\n\n"
+        f"Please confirm your email address by clicking the link below (expires in 1 hour):\n\n"
+        f"{confirm_link}\n\n"
+        f"If you did not create an account, you can safely ignore this email."
+    )
+    msg.add_alternative(f"""
+    <html><body style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;">
+      <h2>Welcome to CAPTCHA Dental AI!</h2>
+      <p>Please confirm your email address to activate your account.</p>
+      <p>
+        <a href="{confirm_link}" style="display:inline-block;padding:12px 24px;background:#6c5ce7;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">
+          Confirm Email
+        </a>
+      </p>
+      <p style="color:#888;font-size:13px;">This link expires in 1 hour. If you did not create an account, you can safely ignore this email.</p>
+    </body></html>
+    """, subtype="html")
+    _send_email(msg)

@@ -4,7 +4,16 @@
       "Bash(mkdir:*)",
       "Bash(chmod:*)",
       "Bash(timeout 5 python:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(curl:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker logs:*)",
+      "Bash(alembic revision:*)",
+      "Bash(docker ps:*)",
+      "Bash(./migrate.sh:*)"
     ],
     "deny": [],
     "ask": []

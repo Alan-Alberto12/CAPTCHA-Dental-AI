@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { API_URL } from '../config';
+
 
 export default function EditUser() {
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ export default function EditUser() {
       }
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/auth/me', {
+        const response = await fetch(`${API_URL}/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -101,7 +103,7 @@ export default function EditUser() {
         updateData.password = formData.password;
       }
 
-      const response = await fetch('http://127.0.0.1:8000/auth/editUser', {
+      const response = await fetch(`${API_URL}/auth/editUser`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +143,7 @@ export default function EditUser() {
                   value={formData.email}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="New Email"
+                  placeholder="Update Email"
                   required
                 />
                 <input
@@ -150,7 +152,7 @@ export default function EditUser() {
                   value={formData.username}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="New Username"
+                  placeholder="Update Username"
                   required
                   minLength={3}
                   maxLength={50}
@@ -161,7 +163,7 @@ export default function EditUser() {
                   value={formData.first_name}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="New First Name"
+                  placeholder="Update First Name"
                 />
                 <input
                   type="text"
@@ -169,7 +171,7 @@ export default function EditUser() {
                   value={formData.last_name}
                   onChange={handleChange}
                   className="border p-2 rounded text-[#555879] bg-[#F4EBD3]"
-                  placeholder="New Last Name"
+                  placeholder="Update Last Name"
                 />
                 <input
                   type="password"

@@ -1,13 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+# FastAPI core
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import timedelta, datetime, timezone
 import secrets
 import hashlib
+import zipfile
+import io
 
 from services.database import get_db
-from models.user import User, PasswordResetToken, EmailConfirmationToken
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, settings
+from services.s3_service import s3_service
+from models.user import User, PasswordResetToken, EmailConfirmationToken, AnnotationSession, SessionImage, SessionQuestion, Annotation, AnnotationImage, Image, Question, UserStats
+from schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest, EmailConfirmRequest, UserUpdate, AdminUserRequest, ChallengeResponse, AnnotationResponse, AnnotationCreate, BulkImageImport, BulkQuestionImport, SessionTitleUpdate, settings
 from utils.security import (
     hash_reset_token,
     send_reset_email,
@@ -41,12 +46,22 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
     return user
 
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Verify that the current user has admin privileges."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get_db)):
     """Register a new user and send confirmation email automatically."""
     # Check if user already exists
     existing_user = db.query(User).filter(
-        (User.email == user_data.email) | (User.username == user_data.username)
+        (func.lower(User.email) == user_data.email.lower()) | (User.username == user_data.username)
     ).first()
 
     if existing_user:
@@ -58,7 +73,7 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
-        email=user_data.email,
+        email=user_data.email.lower(),
         username=user_data.username,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
@@ -90,10 +105,13 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login and get access token."""
-    # Find user by email or username (using username field from OAuth2 form)
-    user = db.query(User).filter(
-        (User.email == form_data.username) | (User.username == form_data.username)
-    ).first()
+    login_input = form_data.username
+    if "@" in login_input:
+        #email - capilatization does not matter
+        user = db.query(User).filter(func.lower(User.email) == login_input.lower()).first()
+    else:
+        #username - capitalization DOES matter
+        user = db.query(User).filter(User.username == login_input).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -227,6 +245,688 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Email successfully confirmed!"}
+
+
+# ADMIN ENDPOINTS
+@router.post("/admin/promote", response_model=UserResponse)
+def promote_user(
+    request: AdminUserRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    # Find the target user by email
+    target_user = db.query(User).filter(User.email == request.email).first()
+
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{request.email}' not found"
+        )
+
+    # Check if user is already an admin
+    if target_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User '{request.email}' is already an admin"
+        )
+
+    # Promote user to admin
+    target_user.is_admin = True
+    db.commit()
+    db.refresh(target_user)
+
+    return target_user
+
+# Demote Admin
+@router.post("/admin/demote", response_model=UserResponse)
+def demote_user(
+    request: AdminUserRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    # Find the user by email
+    target_user = db.query(User).filter(User.email == request.email).first()
+
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email '{request.email}' not found"
+        )
+
+    # Prevent self-demotion 
+    if target_user.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot demote yourself. Ask another admin to demote your account."
+        )
+
+    # Check if user is not an admin
+    if not target_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User '{request.email}' is not an admin"
+        )
+
+    # Demote user from admin
+    target_user.is_admin = False
+    db.commit()
+    db.refresh(target_user)
+
+    return target_user
+
+
+@router.get("/sessions/current")
+def get_current_session(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get the user's current incomplete session, or return null if none exists"""
+
+    # Find the most recent incomplete session for this user
+    session = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.is_completed == False
+    ).order_by(AnnotationSession.started_at.desc()).first()
+
+    if not session:
+        return None
+
+    # Get session images (ordered)
+    session_images = db.query(SessionImage).filter(
+        SessionImage.session_id == session.id
+    ).order_by(SessionImage.image_order).all()
+
+    images = []
+    for si in session_images:
+        image = db.query(Image).filter(Image.id == si.image_id).first()
+        if image:
+            # Generate presigned URL for private S3 bucket access (valid for 1 hour)
+            presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
+            images.append({
+                "id": image.id,
+                "filename": image.filename,
+                "image_url": presigned_url if presigned_url else image.image_url,
+                "order": si.image_order
+            })
+
+    # Get session questions (ordered)
+    session_questions = db.query(SessionQuestion).filter(
+        SessionQuestion.session_id == session.id
+    ).order_by(SessionQuestion.question_order).all()
+
+    questions = []
+    for sq in session_questions:
+        question = db.query(Question).filter(Question.id == sq.question_id).first()
+        if question:
+            questions.append({
+                "id": question.id,
+                "question_text": question.question_text,
+                "question_type": question.question_type,
+                "order": sq.question_order
+            })
+
+    # Get already answered question IDs
+    answered_annotations = db.query(Annotation.question_id).filter(
+        Annotation.session_id == session.id
+    ).all()
+    answered_question_ids = [a[0] for a in answered_annotations]
+
+    return {
+        "session_id": session.id,
+        "images": images,
+        "questions": questions,
+        "answered_question_ids": answered_question_ids,
+        "started_at": session.started_at
+    }
+
+@router.get("/sessions/completed")
+def get_completed_sessions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all completed sessions for the current user to display on Dashboard"""
+    
+    sessions = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.is_completed == True
+    ).order_by(AnnotationSession.completed_at.desc()).all()
+
+    result = []
+    for session in sessions:
+        # Get question count for this session
+        question_count = db.query(SessionQuestion).filter(
+            SessionQuestion.session_id == session.id
+        ).count()
+
+        #get the first image for this session (thumbnail on Dashboard tab)
+        session_first_image = db.query(SessionImage).filter(
+            SessionImage.session_id == session.id
+        ).order_by(SessionImage.image_order).first()
+
+        thumbnail_url = None
+        if session_first_image:
+            image = db.query(Image).filter(Image.id == session_first_image.image_id).first()
+            if image:
+                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+
+        result.append({
+            "session_id": session.id,
+            "title": session.title,
+            "started_at": session.started_at,
+            "completed_at": session.completed_at,
+            "question_count": question_count,
+            "thumbnail_url": thumbnail_url
+        })
+
+    return result
+
+@router.get("/sessions/next")
+def get_next_session(
+    force_new: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get or create an annotation session
+
+    - If user has incomplete session and force_new=False: return existing session
+    - Otherwise: create new session with 4 images and 1-5 random questions
+    """
+    import random
+
+    # Check for existing incomplete session (unless forced to create new)
+    if not force_new:
+        existing_session = db.query(AnnotationSession).filter(
+            AnnotationSession.user_id == current_user.id,
+            AnnotationSession.is_completed == False
+        ).order_by(AnnotationSession.started_at.desc()).first()
+
+        if existing_session:
+            # Return existing session
+            session_images = db.query(SessionImage).filter(
+                SessionImage.session_id == existing_session.id
+            ).order_by(SessionImage.image_order).all()
+
+            images = []
+            for si in session_images:
+                image = db.query(Image).filter(Image.id == si.image_id).first()
+                if image:
+                    # Generate presigned URL for private S3 bucket access (valid for 1 hour)
+                    presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
+                    images.append({
+                        "id": image.id,
+                        "filename": image.filename,
+                        "image_url": presigned_url if presigned_url else image.image_url,
+                        "order": si.image_order
+                    })
+
+            session_questions = db.query(SessionQuestion).filter(
+                SessionQuestion.session_id == existing_session.id
+            ).order_by(SessionQuestion.question_order).all()
+
+            questions = []
+            for sq in session_questions:
+                question = db.query(Question).filter(Question.id == sq.question_id).first()
+                if question:
+                    questions.append({
+                        "id": question.id,
+                        "question_text": question.question_text,
+                        "question_type": question.question_type,
+                        "order": sq.question_order
+                    })
+
+            # Get already answered question IDs
+            answered_annotations = db.query(Annotation.question_id).filter(
+                Annotation.session_id == existing_session.id
+            ).all()
+            answered_question_ids = [a[0] for a in answered_annotations]
+
+            return {
+                "session_id": existing_session.id,
+                "images": images,
+                "questions": questions,
+                "answered_question_ids": answered_question_ids,
+                "started_at": existing_session.started_at,
+                "resumed": True
+            }
+
+    # Always use 4 images
+    num_images = 4
+
+    # Randomly select 1-5 questions
+    num_questions = random.randint(1, 5)
+
+    # Get random images
+    images = db.query(Image).order_by(func.random()).limit(num_images).all()
+    if len(images) < num_images:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Not enough images available (need {num_images}, found {len(images)})"
+        )
+
+    # Get random active questions
+    questions = db.query(Question).filter(Question.active == True).order_by(func.random()).limit(num_questions).all()
+    if len(questions) < num_questions:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Not enough questions available (need {num_questions}, found {len(questions)})"
+        )
+
+    # Create session
+    session = AnnotationSession(
+        user_id=current_user.id,
+    )
+    db.add(session)
+    db.flush()  # Get session ID without committing
+
+    # Add images to session
+    for order, image in enumerate(images, start=1):
+        session_image = SessionImage(
+            session_id=session.id,
+            image_id=image.id,
+            image_order=order
+        )
+        db.add(session_image)
+
+    # Add questions to session
+    for order, question in enumerate(questions, start=1):
+        session_question = SessionQuestion(
+            session_id=session.id,
+            question_id=question.id,
+            question_order=order
+        )
+        db.add(session_question)
+
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session.id,
+        "images": [
+            {
+                "id": img.id,
+                "filename": img.filename,
+                "image_url": s3_service.generate_presigned_url(img.image_url, expiration=30) or img.image_url,
+                "order": order
+            }
+            for order, img in enumerate(images, start=1)
+        ],
+        "questions": [
+            {
+                "id": q.id,
+                "question_text": q.question_text,
+                "question_type": q.question_type,
+                "order": order
+            }
+            for order, q in enumerate(questions, start=1)
+        ],
+        "answered_question_ids": [],
+        "started_at": session.started_at,
+        "resumed": False
+    }
+
+
+@router.post("/annotations", status_code=201)
+def submit_annotation(
+    payload: AnnotationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Submit an annotation - user's selected images for a question"""
+
+    # Verify session exists and belongs to current user
+    session = db.query(AnnotationSession).filter(AnnotationSession.id == payload.session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This session doesn't belong to you")
+
+    if session.is_completed:
+        raise HTTPException(status_code=400, detail="This session is already completed. You cannot submit more annotations.")
+
+    # Verify question is part of this session
+    session_question = db.query(SessionQuestion).filter(
+        SessionQuestion.session_id == payload.session_id,
+        SessionQuestion.question_id == payload.question_id
+    ).first()
+
+    if not session_question:
+        raise HTTPException(status_code=400, detail="Question is not part of this session")
+
+    # Check if this question has already been answered in this session
+    existing_annotation = db.query(Annotation).filter(
+        Annotation.session_id == payload.session_id,
+        Annotation.question_id == payload.question_id
+    ).first()
+
+    if existing_annotation:
+        raise HTTPException(status_code=400, detail="You have already answered this question in this session.")
+
+    # Verify selected images are part of this session
+    session_image_ids = db.query(SessionImage.image_id).filter(
+        SessionImage.session_id == payload.session_id
+    ).all()
+    session_image_ids = [img_id[0] for img_id in session_image_ids]
+
+    for image_id in payload.selected_image_ids:
+        if image_id not in session_image_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Image {image_id} is not part of this session"
+            )
+
+    # Create annotation
+    annotation = Annotation(
+        session_id=payload.session_id,
+        question_id=payload.question_id,
+        time_spent=payload.time_spent,
+        is_correct=None  # to be validated later by AI/admin
+    )
+    db.add(annotation)
+    db.flush()  # Get annotation ID
+
+    # Store selected images
+    for image_id in payload.selected_image_ids:
+        annotation_image = AnnotationImage(
+            annotation_id=annotation.id,
+            image_id=image_id
+        )
+        db.add(annotation_image)
+
+    db.commit()
+    db.refresh(annotation)
+
+    # Check if all questions in this session have been answered
+    total_questions = db.query(SessionQuestion).filter(
+        SessionQuestion.session_id == payload.session_id
+    ).count()
+
+    total_annotations = db.query(Annotation).filter(
+        Annotation.session_id == payload.session_id
+    ).count()
+
+    # Mark session as completed if all questions answered
+    if total_annotations >= total_questions:
+        session.is_completed = True
+        session.completed_at = datetime.now(timezone.utc)
+        db.add(session)
+
+    # Update stats
+    stats = db.query(UserStats).filter(UserStats.user_id == current_user.id).first()
+    if not stats:
+        stats = UserStats(user_id=current_user.id, total_annotations=1)
+        db.add(stats)
+    else:
+        stats.total_annotations += 1
+    db.commit()
+
+    return {
+        "id": annotation.id,
+        "session_id": annotation.session_id,
+        "question_id": annotation.question_id,
+        "selected_image_ids": payload.selected_image_ids,
+        "is_correct": annotation.is_correct,
+        "time_spent": annotation.time_spent,
+        "created_at": annotation.created_at
+    }
+
+
+@router.get("/annotations/me", response_model=list[AnnotationResponse])
+def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get all annotations for the current user's sessions"""
+    # Get all sessions for this user
+    user_sessions = db.query(AnnotationSession).filter(AnnotationSession.user_id == current_user.id).all()
+    session_ids = [s.id for s in user_sessions]
+
+    # Get all annotations from those sessions
+    annotations = (
+        db.query(Annotation)
+        .filter(Annotation.session_id.in_(session_ids))
+        .order_by(Annotation.created_at.desc())
+        .all()
+    )
+    return annotations
+
+
+@router.patch("/sessions/{session_id}/title")
+def update_session_title(
+    session_id: int,
+    payload: SessionTitleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update the title of a completed session"""
+    session = db.query(AnnotationSession).filter(AnnotationSession.id == session_id).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This session doesn't belong to you")
+
+    if not session.is_completed:
+        raise HTTPException(status_code=400, detail="Can only title completed sessions")
+
+    session.title = payload.title
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session.id,
+        "title": session.title,
+        "message": "Session title updated successfully"
+    }
+
+
+@router.post("/admin/import-images-url", status_code=201)
+def import_images_url(
+    payload: BulkImageImport,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Import multiple images from URLs (admin only)"""
+
+    # Check admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can import images"
+        )
+
+    imported_count = 0
+
+    for image_data in payload.images:
+        # Check if image already exists
+        existing = db.query(Image).filter(Image.filename == image_data.filename).first()
+        if existing:
+            continue  # Skip duplicates
+
+        # Create image
+        image = Image(
+            filename=image_data.filename,
+            image_url=image_data.image_url
+        )
+        db.add(image)
+        imported_count += 1
+
+    db.commit()
+
+    return {
+        "message": "Images imported successfully",
+        "images_imported": imported_count
+    }
+
+
+@router.post("/admin/import-images-file", status_code=201)
+async def import_images_file(
+    files: list[UploadFile] = File(...),
+    folder_name: str = "images",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload single or multiple image files to S3 (admin only).
+
+    Images predicted as needs_expert_review are also saved to the DB.
+    Images predicted as does_not_need_expert_review are stored in S3 only.
+    If no trained model is available, all images are saved to the DB.
+    """
+    try:
+        from ml.predict import PredictionService
+        _ml_available = True
+    except Exception:
+        PredictionService = None
+        _ml_available = False
+
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can upload images"
+        )
+
+    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"}
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per image
+
+    if _ml_available:
+        prediction_service = PredictionService.get_instance()
+        if prediction_service.model is None:
+            prediction_service.load_model()
+        model_available = prediction_service.model is not None
+    else:
+        prediction_service = None
+        model_available = False
+
+    results = []
+    failed = []
+
+    def upload_image(filename: str, file_data: bytes, content_type: str):
+        if len(file_data) > MAX_FILE_SIZE:
+            return None, {"filename": filename, "error": f"File too large ({len(file_data)} bytes). Max: {MAX_FILE_SIZE}"}
+
+        s3_url = s3_service.upload_file(
+            file_data=file_data,
+            filename=filename,
+            content_type=content_type,
+            folder=folder_name
+        )
+        if not s3_url:
+            return None, {"filename": filename, "error": "Failed to upload to S3"}
+
+        label = "needs_expert_review"
+        confidence = None
+        if model_available:
+            try:
+                pred = prediction_service.predict(file_data)
+                label = pred["label"]
+                confidence = pred["confidence"]
+            except Exception:
+                pass
+
+        saved_to_db = False
+        if label == "needs_expert_review":
+            existing = db.query(Image).filter(Image.filename == filename).first()
+            if not existing:
+                db.add(Image(filename=filename, image_url=s3_url))
+                db.commit()
+            saved_to_db = True
+
+        return {"filename": filename, "image_url": s3_url, "label": label, "confidence": confidence, "saved_to_db": saved_to_db}, None
+
+    for file in files:
+        try:
+            file_data = await file.read()
+
+            if file.filename.lower().endswith(".zip") or file.content_type in ("application/zip", "application/x-zip-compressed"):
+                try:
+                    with zipfile.ZipFile(io.BytesIO(file_data)) as zf:
+                        for entry in zf.infolist():
+                            if entry.is_dir():
+                                continue
+                            inner_name = entry.filename.split("/")[-1]
+                            if inner_name.startswith("._") or inner_name.startswith("."):
+                                continue
+                            ext = "." + inner_name.rsplit(".", 1)[-1].lower() if "." in inner_name else ""
+                            if ext not in ALLOWED_EXTENSIONS:
+                                continue
+                            inner_data = zf.read(entry)
+                            content_type = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext[1:]}"
+                            result, error = upload_image(inner_name, inner_data, content_type)
+                            if error:
+                                failed.append(error)
+                            else:
+                                results.append(result)
+                except zipfile.BadZipFile:
+                    failed.append({"filename": file.filename, "error": "Invalid or corrupted ZIP file"})
+                continue
+
+            if file.content_type not in ALLOWED_TYPES:
+                failed.append({"filename": file.filename, "error": f"Invalid file type: {file.content_type}. Allowed: JPEG, PNG, WEBP, ZIP"})
+                continue
+
+            result, error = upload_image(file.filename, file_data, file.content_type)
+            if error:
+                failed.append(error)
+            else:
+                results.append(result)
+
+        except Exception as e:
+            failed.append({"filename": file.filename, "error": str(e)})
+
+    saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
+
+    return {
+        "uploaded": len(results),
+        "saved_to_db": saved_to_db_count,
+        "s3_only": len(results) - saved_to_db_count,
+        "failed": len(failed),
+        "folder": folder_name,
+        "results": results,
+        "failures": failed
+    }
+
+
+@router.post("/admin/import-questions", status_code=201)
+def import_questions(
+    payload: BulkQuestionImport,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Import questions (admin only)"""
+
+    # Check admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can import questions"
+        )
+
+    imported_count = 0
+
+    for question_data in payload.questions:
+        # Check if question already exists (by text and type)
+        existing = db.query(Question).filter(
+            Question.question_text == question_data.question_text,
+            Question.question_type == question_data.question_type
+        ).first()
+        if existing:
+            continue  # Skip duplicates
+
+        # Create question
+        question = Question(
+            question_text=question_data.question_text,
+            question_type=question_data.question_type,
+            active=True
+        )
+        db.add(question)
+        imported_count += 1
+
+    db.commit()
+
+    return {
+        "message": "Questions imported successfully",
+        "questions_imported": imported_count
+    }
+
 
 @router.put("/editUser", response_model=UserResponse)
 def update_user(

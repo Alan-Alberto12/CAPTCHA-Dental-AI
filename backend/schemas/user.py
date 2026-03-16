@@ -1,9 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr #emailConformation & resendEmailConfirmation
 
+# user schemas
 class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=50)
@@ -24,15 +24,38 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+# stats schemas
+class UserStatsResponse(BaseModel):
+    total_points: int
+    total_annotations: int
+    accuracy_rate: float
+    daily_streak: int
+
+    class Config:
+        from_attributes = True
+
+
 class UserResponse(UserBase): 
     id: int
-    is_active: bool
-    is_admin: bool
+    challenge_id: int
+    answer: str
+    is_correct: Optional[bool]
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    stats: Optional[UserStatsResponse] = None
+
+    class Config:
+        from_attributes = True
+
+#auth / token schemas
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -57,16 +80,24 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # --- email (MailHog in dev) ---
-    SMTP_HOST: str = "mailhog"
-    SMTP_PORT: int = 1025
+    # --- email (Brevo SMTP) ---
+    SMTP_HOST: str = "smtp-relay.brevo.com"
+    SMTP_PORT: int = 587
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
     MAIL_FROM: str = "no-reply@captcha.local"
 
+    # --- AWS S3 ---
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-2"
+    AWS_S3_BUCKET: str = "captcha-dental-images"
+
     # tell pydantic-settings to read .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+
+#email confirmation schemas
 class EmailConfirmRequest(BaseModel):
     token: str
 
@@ -74,3 +105,98 @@ class ResendConfirmationRequest(BaseModel):
     email: EmailStr
 
 settings = Settings()
+
+#admin user schema
+class AdminUserRequest(BaseModel):
+    """Request schema for admin operations on users (promote/demote)."""
+    email: EmailStr
+
+
+# annotation, image, question, session schemas
+class ImageResponse(BaseModel):
+    id: int
+    filename: str
+    image_url: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class QuestionResponse(BaseModel):
+    id: int
+    question_text: str
+    question_type: str
+    active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SessionResponse(BaseModel):
+    id: int
+    user_id: int
+    title: Optional[str] = None
+    is_completed: bool
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SessionTitleUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
+
+
+class AnnotationCreate(BaseModel):
+    session_id: int
+    question_id: int
+    selected_image_ids: list[int]  # List of image IDs the user selected
+    time_spent: Optional[float] = None
+
+
+class ImageImport(BaseModel):
+    """Schema for importing a single image"""
+    filename: str
+    image_url: str
+
+
+class BulkImageImport(BaseModel):
+    """Schema for bulk importing images"""
+    images: list[ImageImport]
+
+
+class QuestionImport(BaseModel):
+    """Schema for importing a single question"""
+    question_text: str
+    question_type: str
+
+
+class BulkQuestionImport(BaseModel):
+    """Schema for bulk importing questions"""
+    questions: list[QuestionImport]
+
+
+class AnnotationResponse(BaseModel):
+    id: int
+    session_id: int
+    question_id: int
+    selected_image_ids: list[int]  # Which images user selected
+    is_correct: Optional[bool] = None
+    time_spent: Optional[float] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Kept for backwards compatibility (will be removed later)
+class ChallengeResponse(BaseModel):
+    id: int
+    image: ImageResponse
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
