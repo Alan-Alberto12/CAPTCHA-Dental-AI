@@ -10,7 +10,7 @@ from models.user import User
 # from models.prediction import Prediction, SegmentationModel
 
 # Create database tables
-#Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="CAPTCHA Dental AI API",
@@ -22,7 +22,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000","http://localhost:5173",
-        "http://127.0.0.1:5173","http://127.0.0.1:3000",],  # React frontend
+        "http://127.0.0.1:5173","http://127.0.0.1:3000",
+        "https://dentag.xyz","https://www.dentag.xyz"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
