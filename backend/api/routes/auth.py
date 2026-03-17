@@ -54,6 +54,69 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
+@router.get("/admin/users")
+def list_all_users(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """Return all users with their stats. Admin only."""
+    users = db.query(User).order_by(User.created_at.desc()).all()
+ 
+    result = []
+    for user in users:
+        # Pull UserStats row (may not exist for brand-new users)
+        stats = db.query(UserStats).filter(UserStats.user_id == user.id).first()
+ 
+        # Compute total time from completed annotation sessions
+        # time_spent is stored in seconds on each Annotation row
+        total_seconds = (
+            db.query(func.sum(Annotation.time_spent))
+            .join(AnnotationSession, Annotation.session_id == AnnotationSession.id)
+            .filter(AnnotationSession.user_id == user.id)
+            .scalar()
+        ) or 0
+ 
+        total_minutes = round(total_seconds / 60)
+ 
+        # Average session time across completed sessions
+        completed_sessions = (
+            db.query(AnnotationSession)
+            .filter(
+                AnnotationSession.user_id == user.id,
+                AnnotationSession.is_completed == True
+            )
+            .all()
+        )
+ 
+        avg_session_minutes = 0
+        if completed_sessions:
+            session_times = []
+            for s in completed_sessions:
+                secs = (
+                    db.query(func.sum(Annotation.time_spent))
+                    .filter(Annotation.session_id == s.id)
+                    .scalar()
+                ) or 0
+                session_times.append(secs / 60)
+            avg_session_minutes = round(sum(session_times) / len(session_times))
+ 
+        result.append({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "is_admin": user.is_admin,
+            "is_active": user.is_active,
+            "is_verified": user.is_verified,
+            "created_at": user.created_at,
+            "stats": {
+                "total_annotations": stats.total_annotations if stats else 0,
+                "total_time_minutes": total_minutes,
+                "avg_session_time_minutes": avg_session_minutes,
+            },
+        })
+ 
+    return result
+
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get_db)):
     """Register a new user and send confirmation email automatically."""
