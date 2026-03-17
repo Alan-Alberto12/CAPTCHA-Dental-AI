@@ -6,7 +6,7 @@ from models.user import User
 import os
 
 # Create database tables
-#Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="CAPTCHA Dental AI API",
