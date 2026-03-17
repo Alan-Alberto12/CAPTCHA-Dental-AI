@@ -169,3 +169,27 @@ class Prediction(Base):
 
     image = relationship("Image")
 
+class PointTransaction(Base):
+    """Logs every individual point event for a user"""
+    __tablename__ = "point_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    points = Column(Integer, nullable=False)
+    reason = Column(String, nullable=False)  # e.g. "session_complete", "streak_7", "volume_3"
+    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+
+
+class DailySessionCount(Base):
+    """Tracks how many sessions a user completed on each calendar day"""
+    __tablename__ = "daily_session_counts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)  # just the date portion matters
+    session_count = Column(Integer, default=0)
+
+    user = relationship("User")

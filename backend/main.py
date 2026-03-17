@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth, ml
+from api.routes import auth, ml, leaderboard
 from services.database import engine, Base
 from models.user import User
+
 # TODO: Uncomment when these modules are created
 # from models.dataset import Dataset
 # from models.image import Image
@@ -31,6 +32,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(ml.router)
+app.include_router(leaderboard.router)
 
 @app.get("/")
 async def root():

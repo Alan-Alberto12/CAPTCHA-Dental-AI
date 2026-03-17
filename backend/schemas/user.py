@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 # user schemas
 class UserBase(BaseModel):
@@ -210,3 +210,23 @@ class ModelStatusResponse(BaseModel):
     available: bool
     architecture: Optional[str] = None
     best_val_acc: Optional[float] = None
+#Admin user stats overview
+class AdminUserOverview(BaseModel):
+    user_id: int
+    email: str
+    username: str
+    is_admin: bool
+    is_active: bool
+    is_verified: bool
+
+    total_sessions: int
+    completed_sessions: int
+    total_annotations: int
+    last_session_at: Optional[datetime] = None
+
+class AdminAllUsersOverview(BaseModel):
+    total_users: int
+    total_annotations: int
+    total_sessions: int
+    total_completed_sessions: int
+    users: List[AdminUserOverview]
