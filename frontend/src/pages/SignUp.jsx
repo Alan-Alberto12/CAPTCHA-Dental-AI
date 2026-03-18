@@ -25,7 +25,6 @@ function SignUp() {
 
     const handleSubmit = async (e) => {
       e.preventDefault();
-      console.log("Email: ", email);
 
       const passwordValidation = validatePassword(password);
       if (!passwordValidation.minLength || !passwordValidation.hasUppercase || !passwordValidation.hasNumber || !passwordValidation.hasSpecial) {
@@ -53,8 +52,6 @@ function SignUp() {
 
         if(response.ok) {
           const data = await response.json();
-          console.log("Response data:", data);
-          console.log("Status:", response.status);
           setMessage(`User ${data.username} registered successfully!`);
           setEmail("");
           setUsername("");
