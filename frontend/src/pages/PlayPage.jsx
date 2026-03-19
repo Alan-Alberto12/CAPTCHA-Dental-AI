@@ -99,7 +99,6 @@ export default function PlayPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log("Session loaded:", data);
 
                 // Check if this is a resumed session
                 if (data.resumed) {
@@ -188,7 +187,6 @@ export default function PlayPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log("Annotation submitted:", data);
 
                 // Mark question as answered
                 const newAnsweredQuestions = new Set(answeredQuestions);
