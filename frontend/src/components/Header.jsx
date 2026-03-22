@@ -5,7 +5,7 @@ import { API_URL } from '../config';
 
 
 export default function Header( {
-    title = "Dental AI",
+    title = "DenTag",
 }) {
     const navigate = useNavigate();
     const [user, setUser] = useState({ name: "Loading...", avatarUrl: null });
