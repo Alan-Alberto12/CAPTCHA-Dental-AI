@@ -5,24 +5,14 @@ import PresignedImage from "../components/PresignedImage";
 import { API_URL } from '../config';
 
 
-/**
- * PlayPage - Image Selection/Annotation System
- * - Fetches session with 4 images and 1-5 random questions
- * - Allows users to select images for each question
- * - Submits annotations to backend
- * - Tracks time spent per question
- * - Auto-refreshes expired presigned URLs
- */
 export default function PlayPage() {
     const navigate = useNavigate();
 
-    // Session data (raw from API)
-    const [rawSession, setRawSession] = useState(null);
+    const [sessionFromAPI, setSessionFromAPI] = useState(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedImages, setSelectedImages] = useState([]);
     const [answeredQuestions, setAnsweredQuestions] = useState(new Set());
 
-    // UI states
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [message, setMessage] = useState(null);
@@ -39,7 +29,7 @@ export default function PlayPage() {
 
     // Presigned URL management with auto-refresh
     const { session, isRefreshing, refreshError, handleImageError } = usePresignedImages(
-        rawSession,
+        sessionFromAPI,
         async () => {
             // Refresh callback: fetch current session to get new presigned URLs
             const token = localStorage.getItem("token");
@@ -52,7 +42,8 @@ export default function PlayPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                setRawSession(data); // Update raw session
+                // sync fresh image URLs received from the API, so it can be back into state.
+                setSessionFromAPI(data);
                 return data;
             }
             return null;
@@ -107,7 +98,7 @@ export default function PlayPage() {
                     setTimeout(() => setMessage(null), 3000);
                 }
 
-                setRawSession(data);
+                setSessionFromAPI(data);
 
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
@@ -366,7 +357,7 @@ export default function PlayPage() {
                 {/* Header with Progress */}
                 <div className="mb-4 flex items-center justify-between">
                     <div className="text-[#F5EEDC]">
-                        <p className="text-sm font-medium">Session {session.session_id}</p>
+                        <p className="text-sm font-medium">Session {session.session_number ?? 1}</p>
                     </div>
                 </div>
 

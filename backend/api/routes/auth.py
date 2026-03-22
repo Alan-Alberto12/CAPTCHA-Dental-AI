@@ -29,7 +29,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    """Get current authenticated user from JWT token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -48,7 +47,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Verify that the current user has admin privileges."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -107,10 +105,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     """Login and get access token."""
     login_input = form_data.username
     if "@" in login_input:
-        #email - capilatization does not matter
         user = db.query(User).filter(func.lower(User.email) == login_input.lower()).first()
     else:
-        #username - capitalization DOES matter
         user = db.query(User).filter(User.username == login_input).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -142,7 +138,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @router.get("/me", response_model=UserResponse)
 def get_user(current_user: User = Depends(get_current_user)):
-    """Get current user information."""
     return current_user
 
 # ----- FORGOT PASSWORD -----
@@ -162,7 +157,8 @@ def forgot_password(payload : ForgotPasswordRequest, bg : BackgroundTasks, db : 
         reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={raw_token}"
         bg.add_task(send_reset_email, to_email=user.email, reset_link=reset_link)
 
-        return {"message": "If that email exists, a password reset link has been sent."}
+    # always return the same message — don't reveal whether the email exists
+    return {"message": "If that email exists, a password reset link has been sent."}
     
 
 @router.post("/reset-password", status_code = 200)
@@ -371,8 +367,14 @@ def get_current_session(
     ).all()
     answered_question_ids = [a[0] for a in answered_annotations]
 
+    session_number = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.id <= session.id
+    ).count()
+
     return {
         "session_id": session.id,
+        "session_number": session_number,
         "images": images,
         "questions": questions,
         "answered_question_ids": answered_question_ids,
@@ -426,74 +428,16 @@ def get_next_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get or create an annotation session
-
-    - If user has incomplete session and force_new=False: return existing session
-    - Otherwise: create new session with 4 images and 1-5 random questions
-    """
-    import random
-
-    # Check for existing incomplete session (unless forced to create new)
+    # resume existing session if one is in progress
     if not force_new:
-        existing_session = db.query(AnnotationSession).filter(
-            AnnotationSession.user_id == current_user.id,
-            AnnotationSession.is_completed == False
-        ).order_by(AnnotationSession.started_at.desc()).first()
-
-        if existing_session:
-            # Return existing session
-            session_images = db.query(SessionImage).filter(
-                SessionImage.session_id == existing_session.id
-            ).order_by(SessionImage.image_order).all()
-
-            images = []
-            for si in session_images:
-                image = db.query(Image).filter(Image.id == si.image_id).first()
-                if image:
-                    # Generate presigned URL for private S3 bucket access (valid for 1 hour)
-                    presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
-                    images.append({
-                        "id": image.id,
-                        "filename": image.filename,
-                        "image_url": presigned_url if presigned_url else image.image_url,
-                        "order": si.image_order
-                    })
-
-            session_questions = db.query(SessionQuestion).filter(
-                SessionQuestion.session_id == existing_session.id
-            ).order_by(SessionQuestion.question_order).all()
-
-            questions = []
-            for sq in session_questions:
-                question = db.query(Question).filter(Question.id == sq.question_id).first()
-                if question:
-                    questions.append({
-                        "id": question.id,
-                        "question_text": question.question_text,
-                        "question_type": question.question_type,
-                        "order": sq.question_order
-                    })
-
-            # Get already answered question IDs
-            answered_annotations = db.query(Annotation.question_id).filter(
-                Annotation.session_id == existing_session.id
-            ).all()
-            answered_question_ids = [a[0] for a in answered_annotations]
-
-            return {
-                "session_id": existing_session.id,
-                "images": images,
-                "questions": questions,
-                "answered_question_ids": answered_question_ids,
-                "started_at": existing_session.started_at,
-                "resumed": True
-            }
+        existing = get_current_session(db=db, current_user=current_user)
+        if existing and existing.get("questions") and existing.get("images"):
+            return {**existing, "resumed": True}
 
     # Always use 4 images
     num_images = 4
 
-    # Randomly select 1-5 questions
-    num_questions = random.randint(1, 5)
+    num_questions = 3
 
     # Get random images
     images = db.query(Image).order_by(func.random()).limit(num_images).all()
@@ -539,8 +483,14 @@ def get_next_session(
     db.commit()
     db.refresh(session)
 
+    session_number = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == current_user.id,
+        AnnotationSession.id <= session.id
+    ).count()
+
     return {
         "session_id": session.id,
+        "session_number": session_number,
         "images": [
             {
                 "id": img.id,
@@ -722,17 +672,8 @@ def update_session_title(
 def import_images_url(
     payload: BulkImageImport,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    _: User = Depends(get_current_admin)
 ):
-    """Import multiple images from URLs (admin only)"""
-
-    # Check admin
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can import images"
-        )
-
     imported_count = 0
 
     for image_data in payload.images:
@@ -761,7 +702,7 @@ def import_images_url(
 async def import_images_file(
     files: list[UploadFile] = File(...),
     folder_name: str = "images",
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     """Upload single or multiple image files to S3 (admin only).
@@ -776,12 +717,6 @@ async def import_images_file(
     except Exception:
         PredictionService = None
         _ml_available = False
-
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can upload images"
-        )
 
     ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"}
     ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
@@ -889,17 +824,8 @@ async def import_images_file(
 def import_questions(
     payload: BulkQuestionImport,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    _: User = Depends(get_current_admin)
 ):
-    """Import questions (admin only)"""
-
-    # Check admin
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can import questions"
-        )
-
     imported_count = 0
 
     for question_data in payload.questions:
@@ -934,7 +860,6 @@ def update_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update current user information."""
     # Check if email or username is being changed and already exists
     if user_update.email and user_update.email != current_user.email:
         existing_user = db.query(User).filter(User.email == user_update.email).first()
