@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_URL } from '../config';
+
 
 function Login() {
     const navigate = useNavigate();
@@ -33,24 +35,20 @@ function Login() {
     }, []);
 
     const handleEmailConfirmation = async (token) => {
-        console.log("Attempting email confirmation with token:", token);
         try {
-            const response = await fetch("http://127.0.0.1:8000/auth/confirm-email", {
+            
+            const response = await fetch(`${API_URL}/auth/confirm-email`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ token }),
             });
 
-            console.log("Email confirmation response status:", response.status);
-
             if (response.ok) {
                 const data = await response.json();
-                console.log("Email confirmation success:", data);
                 setEmailConfirmationStatus('success');
                 setShowEmailConfirmation(true);
             } else {
                 const errorData = await response.json();
-                console.log("Email confirmation error response:", errorData);
                 setEmailConfirmationStatus('error');
                 setShowEmailConfirmation(true);
             }
@@ -89,7 +87,7 @@ function Login() {
             formData.append('username', email); // backend accepts email in username field
             formData.append('password', password);
 
-            const response = await fetch("http://127.0.0.1:8000/auth/login", {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: formData,
@@ -97,7 +95,6 @@ function Login() {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log("Login successful:", data);
                 setMessage("Login successful!");
                 // Store auth token if provided (backend returns 'access_token')
                 if (data.access_token) {
@@ -107,7 +104,6 @@ function Login() {
                 navigate('/dashboard');
             } else {
                 const errorData = await response.json();
-                console.log("Error response:", errorData);
 
                 // Handle different error response formats
                 let errorMessage = "Email or Password is incorrect";
@@ -141,7 +137,7 @@ function Login() {
         }
 
         try {
-            const response = await fetch("http://127.0.0.1:8000/auth/forgot-password", {
+            const response = await fetch(`${API_URL}/auth/forgot-password`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
