@@ -31,8 +31,6 @@ services:
       - ./backend:/app
     env_file:
       - ./backend/.env
-    environment:
-      - DATABASE_URL=postgresql://captcha_user:captcha_password@db:5432/captcha_dental_db
     depends_on:
       db:
         condition: service_healthy

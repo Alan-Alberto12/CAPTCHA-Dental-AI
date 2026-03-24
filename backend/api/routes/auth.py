@@ -802,7 +802,7 @@ def import_images_url(
 @router.post("/admin/import-images-file", status_code=201)
 async def import_images_file(
     files: list[UploadFile] = File(...),
-    folder_name: str = "images",
+    folder_name: str = "image_upload",
     current_user: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
