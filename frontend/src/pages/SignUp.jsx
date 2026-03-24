@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_URL } from '../config';
-
 
 function SignUp() {
     const navigate = useNavigate();
@@ -25,6 +23,7 @@ function SignUp() {
 
     const handleSubmit = async (e) => {
       e.preventDefault();
+      console.log("Email: ", email);
 
       const passwordValidation = validatePassword(password);
       if (!passwordValidation.minLength || !passwordValidation.hasUppercase || !passwordValidation.hasNumber || !passwordValidation.hasSpecial) {
@@ -38,7 +37,7 @@ function SignUp() {
       }
 
       try {
-        const response = await fetch(`${API_URL}/auth/signup`, {
+        const response = await fetch("http://127.0.0.1:8000/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -52,6 +51,8 @@ function SignUp() {
 
         if(response.ok) {
           const data = await response.json();
+          console.log("Response data:", data);
+          console.log("Status:", response.status);
           setMessage(`User ${data.username} registered successfully!`);
           setEmail("");
           setUsername("");

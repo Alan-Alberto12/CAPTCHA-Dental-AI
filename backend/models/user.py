@@ -66,9 +66,6 @@ class AnnotationSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
 
-    # Session metadata
-    title = Column(String(100), nullable=True)
-
     # Session status
     is_completed = Column(Boolean, default=False)
     started_at = Column(DateTime(timezone=True), server_default=func.now())

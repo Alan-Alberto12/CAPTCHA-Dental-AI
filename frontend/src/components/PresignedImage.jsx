@@ -28,6 +28,7 @@ export default function PresignedImage({
     const [hasTriedRefresh, setHasTriedRefresh] = useState(false);
 
     const handleError = () => {
+        console.log('🖼️ Image load failed:', alt);
 
         // Only trigger refresh once per image
         if (!hasTriedRefresh && onError) {

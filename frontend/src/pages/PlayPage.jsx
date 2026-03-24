@@ -2,17 +2,25 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePresignedImages } from "../hooks/usePresignedImages";
 import PresignedImage from "../components/PresignedImage";
-import { API_URL } from '../config';
 
-
+/**
+ * PlayPage - Image Selection/Annotation System
+ * - Fetches session with 4 images and 1-5 random questions
+ * - Allows users to select images for each question
+ * - Submits annotations to backend
+ * - Tracks time spent per question
+ * - Auto-refreshes expired presigned URLs
+ */
 export default function PlayPage() {
     const navigate = useNavigate();
 
-    const [sessionFromAPI, setSessionFromAPI] = useState(null);
+    // Session data (raw from API)
+    const [rawSession, setRawSession] = useState(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedImages, setSelectedImages] = useState([]);
     const [answeredQuestions, setAnsweredQuestions] = useState(new Set());
 
+    // UI states
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [message, setMessage] = useState(null);
@@ -20,30 +28,26 @@ export default function PlayPage() {
 
     // Session completion
     const [sessionCompleted, setSessionCompleted] = useState(false);
-    const [sessionTitle, setSessionTitle] = useState("");
-    const [isSavingTitle, setIsSavingTitle] = useState(false);
-    const [titleSaved, setTitleSaved] = useState(false);
 
     // Prevent duplicate session fetches (React StrictMode protection)
     const hasFetchedSession = useRef(false);
 
     // Presigned URL management with auto-refresh
     const { session, isRefreshing, refreshError, handleImageError } = usePresignedImages(
-        sessionFromAPI,
+        rawSession,
         async () => {
             // Refresh callback: fetch current session to get new presigned URLs
             const token = localStorage.getItem("token");
             if (!token) return null;
 
-            const response = await fetch(`${API_URL}/auth/sessions/current`, {
+            const response = await fetch("http://127.0.0.1:8000/auth/sessions/current", {
                 method: "GET",
                 headers: { "Authorization": `Bearer ${token}` }
             });
 
             if (response.ok) {
                 const data = await response.json();
-                // sync fresh image URLs received from the API, so it can be back into state.
-                setSessionFromAPI(data);
+                setRawSession(data); // Update raw session
                 return data;
             }
             return null;
@@ -78,8 +82,8 @@ export default function PlayPage() {
             }
 
             const url = forceNew
-                ? `${API_URL}/auth/sessions/next?force_new=true`
-                : `${API_URL}/auth/sessions/next`;
+                ? "http://127.0.0.1:8000/auth/sessions/next?force_new=true"
+                : "http://127.0.0.1:8000/auth/sessions/next";
 
             const response = await fetch(url, {
                 method: "GET",
@@ -90,15 +94,16 @@ export default function PlayPage() {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log("Session loaded:", data);
 
                 // Check if this is a resumed session
                 if (data.resumed) {
-                    setMessage("Resuming your previous session...");
+                    setMessage("📍 Resuming your previous session...");
                     // Clear message after 3 seconds
                     setTimeout(() => setMessage(null), 3000);
                 }
 
-                setSessionFromAPI(data);
+                setRawSession(data);
 
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
@@ -162,7 +167,7 @@ export default function PlayPage() {
         try {
             const token = localStorage.getItem("token");
 
-            const response = await fetch(`${API_URL}/auth/annotations`, {
+            const response = await fetch("http://127.0.0.1:8000/auth/annotations", {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -178,6 +183,7 @@ export default function PlayPage() {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log("Annotation submitted:", data);
 
                 // Mark question as answered
                 const newAnsweredQuestions = new Set(answeredQuestions);
@@ -186,18 +192,16 @@ export default function PlayPage() {
 
                 // Check if all questions answered
                 if (newAnsweredQuestions.size === session.questions.length) {
-                    //Finalize session if all questions have been
                     setSessionCompleted(true);
-                    setError(null);
+                    setMessage("🎉 Session completed! All questions answered.");
                 } else {
-                    //Go to next question if there's still any left
-                    handleNextQuestion();
-                    // setMessage("Answer submitted!");
-                    // // Auto-advance to next unanswered question after 1 second
-                    // setTimeout(() => {
-                    //     handleNextQuestion();
-                    // }, 1000);
+                    setMessage("✅ Answer submitted!");
+                    // Auto-advance to next unanswered question after 1 second
+                    setTimeout(() => {
+                        handleNextQuestion();
+                    }, 1000);
                 }
+
                 // Clear selected images
                 setSelectedImages([]);
             } else {
@@ -244,40 +248,8 @@ export default function PlayPage() {
         setSelectedImages([]);
     };
 
-    const handleSaveTitle = async () => {
-        if (!sessionTitle.trim() || !session) return;
-
-        setIsSavingTitle(true);
-        try {
-            const token = localStorage.getItem("token");
-            const response = await fetch(`${API_URL}/auth/sessions/${session.session_id}/title`, {
-                method: "PATCH",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ title: sessionTitle.trim() }),
-            });
-
-            if (response.ok) {
-                setTitleSaved(true);
-                setMessage("Session title saved!");
-            } else {
-                const errorData = await response.json();
-                setError(errorData.detail || "Failed to save title");
-            }
-        } catch (err) {
-            console.error("Error saving title:", err);
-            setError("Network error. Please try again.");
-        } finally {
-            setIsSavingTitle(false);
-        }
-    };
-
     const handleNewSession = () => {
         hasFetchedSession.current = false;
-        setSessionTitle("");
-        setTitleSaved(false);
         fetchNewSession(true); // Force new session
     };
 
@@ -357,73 +329,85 @@ export default function PlayPage() {
                 {/* Header with Progress */}
                 <div className="mb-4 flex items-center justify-between">
                     <div className="text-[#F5EEDC]">
-                        <p className="text-sm font-medium">Session {session.session_number ?? 1}</p>
+                        <p className="text-sm font-medium">Session {session.session_id}</p>
+                        <p className="text-xs opacity-80">Progress: {progress} questions answered</p>
                     </div>
+                    <button
+                        onClick={() => navigate("/")}
+                        className="text-[#F5EEDC] hover:text-white text-sm underline"
+                    >
+                        Exit
+                    </button>
                 </div>
 
-                {!sessionCompleted && (
-                    <>
-                    {/* Question Prompt */}
-                    <div className="mb-3 rounded-lg bg-[#525470] px-6 py-4">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[#F5EEDC] text-sm opacity-80">
-                                Question {currentQuestionIndex + 1} of {session.questions.length}
-                            </span>
-                        </div>
-                        <h1 className="text-xl md:text-xl font-semibold text-[#F5EEDC]">
-                            {currentQuestion.question_text}
-                        </h1>
+                {/* Question Prompt */}
+                <div className="mb-6 rounded-xl bg-[#525470] px-6 py-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[#F5EEDC] text-sm opacity-80">
+                            Question {currentQuestionIndex + 1} of {session.questions.length}
+                        </span>
+                        {answeredQuestions.has(currentQuestion.id) && (
+                            <span className="text-green-400 text-sm font-medium">✓ Answered</span>
+                        )}
                     </div>
+                    <h1 className="text-xl md:text-2xl font-semibold text-[#F5EEDC]">
+                        {currentQuestion.question_text}
+                    </h1>
+                    <p className="text-[#F5EEDC] text-sm opacity-70 mt-2">
+                        Type: {currentQuestion.question_type.replace('_', ' ')}
+                    </p>
+                </div>
 
-                    {/* Instructions */}
-                    <div className="mb-4 bg-white/10 rounded-md px-4 py-2">
-                        <p className="text-[#F5EEDC] text-sm">
-                            Selected: {selectedImages.length}
-                        </p>
-                    </div>
+                {/* Instructions */}
+                <div className="mb-4 bg-white/10 rounded-lg px-4 py-2">
+                    <p className="text-[#F5EEDC] text-sm">
+                        💡 Click images to select/deselect • Selected: {selectedImages.length}
+                    </p>
+                </div>
 
-                    {/* Image Grid (2x2) */}
-                    <div className="grid grid-cols-2 gap-4 mb-6 max-w-md mx-auto">
-                        {session.images.map((image) => {
-                            const isSelected = selectedImages.includes(image.id);
-                            return (
-                                <div
-                                    key={image.id}
-                                    onClick={() => handleImageClick(image.id)}
-                                    className={`
-                                        relative aspect-square rounded-lg overflow-hidden cursor-pointer
-                                        transition-all duration-200 transform hover:scale-105
-                                        ${isSelected
-                                            ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
-                                            : 'ring-2 ring-[#525470] hover:ring-[#F5EEDC]/50'
-                                        }
-                                    `}
-                                >
-                                    <PresignedImage
-                                        src={image.image_url}
-                                        alt={image.filename}
-                                        className="w-full h-full object-cover"
-                                        onError={() => handleImageError(image.id)}
-                                        isRefreshing={isRefreshing}
-                                    />
-                                    {isSelected && (
-                                        <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
-                                            <div className="bg-[#525470] text-[#F5EEDC] rounded-full w-12 h-12 flex items-center justify-center text-2xl font-bold">
-                                                ✓
-                                            </div>
+                {/* Image Grid (4 images) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    {session.images.map((image) => {
+                        const isSelected = selectedImages.includes(image.id);
+                        return (
+                            <div
+                                key={image.id}
+                                onClick={() => handleImageClick(image.id)}
+                                className={`
+                                    relative aspect-square rounded-lg overflow-hidden cursor-pointer
+                                    transition-all duration-200 transform hover:scale-105
+                                    ${isSelected
+                                        ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
+                                        : 'ring-2 ring-[#525470] hover:ring-[#F5EEDC]/50'
+                                    }
+                                `}
+                            >
+                                <PresignedImage
+                                    src={image.image_url}
+                                    alt={image.filename}
+                                    className="w-full h-full object-cover"
+                                    onError={() => handleImageError(image.id)}
+                                    isRefreshing={isRefreshing}
+                                />
+                                {isSelected && (
+                                    <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
+                                        <div className="bg-[#525470] text-[#F5EEDC] rounded-full w-12 h-12 flex items-center justify-center text-2xl font-bold">
+                                            ✓
                                         </div>
-                                    )}
+                                    </div>
+                                )}
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1">
+                                    <p className="text-white text-xs truncate">{image.filename}</p>
                                 </div>
-                            );
-                        })}
-                    </div>
-                    </>
-                )}
+                            </div>
+                        );
+                    })}
+                </div>
 
                 {/* Messages */}
                 {isRefreshing && (
                     <div className="mb-4 rounded-lg bg-blue-500/20 border border-blue-500 px-4 py-3">
-                        <p className="text-[#F5EEDC] font-medium">Refreshing images...</p>
+                        <p className="text-[#F5EEDC] font-medium">🔄 Refreshing images...</p>
                     </div>
                 )}
 
@@ -447,7 +431,7 @@ export default function PlayPage() {
 
                 {/* Action Buttons */}
                 {!sessionCompleted ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-lg mx-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl mx-auto">
                         <button
                             onClick={handlePreviousQuestion}
                             className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
@@ -469,45 +453,23 @@ export default function PlayPage() {
                         </button>
                         <button
                             onClick={handleNextQuestion}
-                            className="rounded-lg border-2 border-[#525470] py-3 py-2 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
+                            className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
                         >
                             Next →
                         </button>
                     </div>
                 ) : (
-                    <div className="max-w-lg mx-auto">
+                    <div className="max-w-md mx-auto">
                         <div className="mb-6 rounded-xl bg-[#525470] px-6 py-8 text-center">
-                            <h2 className="text-2xl font-bold text-[#F5EEDC] mb-2">Session Completed!</h2>
+                            <div className="text-6xl mb-4">🎉</div>
+                            <h2 className="text-2xl font-bold text-[#F5EEDC] mb-2">Session Complete!</h2>
                             <p className="text-[#F5EEDC] opacity-80 mb-4">
                                 You answered all {session.questions.length} questions.
                             </p>
-
-                            {/* Session Title Input */}
-                            <div className="mt-4 text-left">
-                                <label className="block text-[#F5EEDC] text-sm font-medium mb-2">
-                                    Enter New Session Title (Optional):
-                                </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={sessionTitle}
-                                        onChange={(e) => setSessionTitle(e.target.value)}
-                                        maxLength={100}
-                                        disabled={titleSaved}
-                                        className="flex-1 px-4 py-2 rounded-lg bg-white/90 text-[#525470] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#F5EEDC] disabled:opacity-60"
-                                    />
-                                    <button
-                                        onClick={handleSaveTitle}
-                                        disabled={!sessionTitle.trim() || isSavingTitle || titleSaved}
-                                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                                            titleSaved
-                                                ? 'bg-green-500 text-white'
-                                                : 'bg-[#F5EEDC] text-[#525470] hover:bg-[#F5EEDC]/90 disabled:opacity-50 disabled:cursor-not-allowed'
-                                        }`}
-                                    >
-                                        {isSavingTitle ? '...' : titleSaved ? '✓' : 'Save'}
-                                    </button>
-                                </div>
+                            <div className="bg-white/10 rounded-lg px-4 py-3">
+                                <p className="text-[#F5EEDC] text-sm">
+                                    💡 Click "Start New Session" to begin a fresh session. Your progress is saved!
+                                </p>
                             </div>
                         </div>
                         <button
@@ -515,6 +477,12 @@ export default function PlayPage() {
                             className="w-full rounded-lg bg-[#F5EEDC] px-6 py-3 font-semibold text-[#525470] hover:bg-[#F5EEDC]/90"
                         >
                             Start New Session
+                        </button>
+                        <button
+                            onClick={() => navigate("/")}
+                            className="w-full mt-3 rounded-lg border-2 border-[#525470] px-6 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
+                        >
+                            Back to Home
                         </button>
                     </div>
                 )}
