@@ -1,18 +1,13 @@
-# Frontend dev image for Vite + React
 FROM node:20-alpine
 
-# Create app dir
 WORKDIR /app
 
-# Install deps using lockfile for deterministic installs
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 
-# Copy the rest of the source (vite does HMR; compose will also bind-mount)
 COPY . .
+RUN npm run build
 
-# Expose Vite dev port
-EXPOSE 5173
+EXPOSE 8080
 
-# Run Vite dev server (host so containers/host can reach it)
-CMD ["npm","run","dev","--","--host"]
+CMD ["npm", "start"]
