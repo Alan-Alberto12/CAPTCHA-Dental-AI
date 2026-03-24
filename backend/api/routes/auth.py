@@ -39,6 +39,7 @@ from schemas.user import (
     AnnotationCreate,
     BulkImageImport,
     BulkQuestionImport,
+    SessionTitleUpdate,
     settings,
     AdminUserOverview,
     AdminAllUsersOverview,
@@ -879,23 +880,11 @@ async def import_images_file(
                 failed.append({"filename": file.filename, "error": f"File too large: {len(file_data)} bytes. Max: {MAX_FILE_SIZE} bytes"})
                 continue
 
-            s3_url = s3_service.upload_file(
-                file_data=file_data,
-                filename=file.filename,
-                content_type=file.content_type,
-                folder=folder_name,
-            )
-
-            if not s3_url:
-                failed.append({"filename": file.filename, "error": "Failed to upload to S3"})
-                continue
-
-            image = Image(filename=file.filename, image_url=s3_url)
-            db.add(image)
-            db.commit()
-            db.refresh(image)
-
-            results.append({"id": image.id, "filename": image.filename, "image_url": image.image_url})
+            result, error = upload_image(file.filename, file_data, file.content_type)
+            if error:
+                failed.append(error)
+            else:
+                results.append(result)
 
         except Exception as e:
             failed.append({"filename": file.filename, "error": str(e)})

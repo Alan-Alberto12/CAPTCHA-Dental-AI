@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-
-const API = 'http://127.0.0.1:8000';
+import { API_URL } from '../config';
 
 // helper functions
 const fmtMins = (m) => {
@@ -67,7 +66,7 @@ function UserManagement() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/auth/admin/users`, { headers: authHeaders() });
+      const res = await fetch(`${API_URL}/auth/admin/users`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`Failed to load users (${res.status})`);
       const data = await res.json();
       setUsers(data);
@@ -90,7 +89,7 @@ function UserManagement() {
     setActionError(null);
     const endpoint = promote ? '/auth/admin/promote' : '/auth/admin/demote';
     try {
-      const res = await fetch(`${API}${endpoint}`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ email: user.email }),
@@ -185,7 +184,7 @@ function Statistics() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/auth/admin/users`, { headers: authHeaders() });
+      const res = await fetch(`${API_URL}/auth/admin/users`, { headers: authHeaders() });
       if (!res.ok) throw new Error(`Failed to load statistics (${res.status})`);
       const data = await res.json();
       setUsers(data);
@@ -314,7 +313,7 @@ function UploadImages() {
       const formData = new FormData();
       valid.forEach(f => formData.append('files', f));
 
-      const res = await fetch(`${API}/auth/admin/import-images-file`, {
+      const res = await fetch(`${API_URL}/auth/admin/import-images-file`, {
         method: 'POST',
         headers: authHeaders(),
         body: formData,

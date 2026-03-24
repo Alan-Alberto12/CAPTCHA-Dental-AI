@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth
+from api.routes import auth, ml, leaderboard
 from services.database import engine, Base
 from models.user import User
 import os
