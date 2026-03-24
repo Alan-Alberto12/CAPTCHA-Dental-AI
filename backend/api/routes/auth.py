@@ -839,6 +839,11 @@ async def import_images_file(
         if len(file_data) > MAX_FILE_SIZE:
             return None, {"filename": filename, "error": f"File too large ({len(file_data)} bytes). Max: {MAX_FILE_SIZE}"}
 
+        # Check DB first — skip S3 upload entirely if already saved
+        existing = db.query(Image).filter(Image.filename == filename).first()
+        if existing:
+            return {"filename": filename, "image_url": existing.image_url, "label": "needs_expert_review", "confidence": None, "saved_to_db": True, "already_existed": True}, None
+
         s3_url = s3_service.upload_file(
             file_data=file_data,
             filename=filename,
@@ -860,13 +865,11 @@ async def import_images_file(
 
         saved_to_db = False
         if label == "needs_expert_review":
-            existing = db.query(Image).filter(Image.filename == filename).first()
-            if not existing:
-                db.add(Image(filename=filename, image_url=s3_url))
-                db.commit()
+            db.add(Image(filename=filename, image_url=s3_url))
+            db.commit()
             saved_to_db = True
 
-        return {"filename": filename, "image_url": s3_url, "label": label, "confidence": confidence, "saved_to_db": saved_to_db}, None
+        return {"filename": filename, "image_url": s3_url, "label": label, "confidence": confidence, "saved_to_db": saved_to_db, "already_existed": False}, None
 
     for file in files:
         try:
@@ -927,11 +930,11 @@ async def import_images_file(
             failed.append({"filename": file.filename, "error": str(e)})
 
     saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
-
-    saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
+    already_existed_count = sum(1 for r in results if r.get("already_existed"))
 
     return {
         "uploaded": len(results),
+        "already_existed": already_existed_count,
         "saved_to_db": saved_to_db_count,
         "s3_only": len(results) - saved_to_db_count,
         "failed": len(failed),
