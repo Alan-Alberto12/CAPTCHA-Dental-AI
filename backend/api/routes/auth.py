@@ -37,7 +37,6 @@ from schemas.user import (
     AnnotationCreate,
     BulkImageImport,
     BulkQuestionImport,
-    SessionTitleUpdate,
     settings,
     AdminUserOverview,
     AdminAllUsersOverview,
@@ -705,18 +704,70 @@ def import_images_url(payload: BulkImageImport, db: Session = Depends(get_db), c
 async def import_images_file(
     files: list[UploadFile] = File(...),
     folder_name: str = "images",
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
 ):
-    """Upload single or multiple image files to S3 (admin only)"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can upload images")
+    """Upload single or multiple image files to S3 (admin only).
 
-    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    Images predicted as needs_expert_review are also saved to the DB.
+    Images predicted as does_not_need_expert_review are stored in S3 only.
+    If no trained model is available, all images are saved to the DB.
+    """
+    try:
+        from ml.predict import PredictionService
+        _ml_available = True
+    except Exception:
+        PredictionService = None
+        _ml_available = False
+
+    ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"}
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per image
+
+    if _ml_available:
+        prediction_service = PredictionService.get_instance()
+        if prediction_service.model is None:
+            prediction_service.load_model()
+        model_available = prediction_service.model is not None
+    else:
+        prediction_service = None
+        model_available = False
 
     results = []
     failed = []
+
+    def upload_image(filename: str, file_data: bytes, content_type: str):
+        if len(file_data) > MAX_FILE_SIZE:
+            return None, {"filename": filename, "error": f"File too large ({len(file_data)} bytes). Max: {MAX_FILE_SIZE}"}
+
+        s3_url = s3_service.upload_file(
+            file_data=file_data,
+            filename=filename,
+            content_type=content_type,
+            folder=folder_name
+        )
+        if not s3_url:
+            return None, {"filename": filename, "error": "Failed to upload to S3"}
+
+        label = "needs_expert_review"
+        confidence = None
+        if model_available:
+            try:
+                pred = prediction_service.predict(file_data)
+                label = pred["label"]
+                confidence = pred["confidence"]
+            except Exception:
+                pass
+
+        saved_to_db = False
+        if label == "needs_expert_review":
+            existing = db.query(Image).filter(Image.filename == filename).first()
+            if not existing:
+                db.add(Image(filename=filename, image_url=s3_url))
+                db.commit()
+            saved_to_db = True
+
+        return {"filename": filename, "image_url": s3_url, "label": label, "confidence": confidence, "saved_to_db": saved_to_db}, None
 
     for file in files:
         try:
@@ -739,8 +790,12 @@ async def import_images_file(
         except Exception as e:
             failed.append({"filename": file.filename, "error": str(e)})
 
+    saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
+
     return {
         "uploaded": len(results),
+        "saved_to_db": saved_to_db_count,
+        "s3_only": len(results) - saved_to_db_count,
         "failed": len(failed),
         "folder": folder_name,
         "results": results,
