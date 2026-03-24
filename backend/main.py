@@ -1,6 +1,10 @@
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth
+from api.routes import auth, ml, leaderboard
 from services.database import engine, Base
 from models.user import User
 import os
@@ -35,6 +39,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(ml.router)
+app.include_router(leaderboard.router)
 
 @app.get("/")
 async def root():

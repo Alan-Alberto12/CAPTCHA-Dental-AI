@@ -8,7 +8,7 @@ export default function Header( {
     title = "DenTag",
 }) {
     const navigate = useNavigate();
-    const [user, setUser] = useState({ name: "Loading...", avatarUrl: null });
+    const [user, setUser] = useState({ name: "Loading...", avatarUrl: null, isAdmin: false });
     const [showDropdown, setShowDropdown] = useState(false);
 
     // Fetch current user data
@@ -32,6 +32,7 @@ export default function Header( {
                     setUser({
                         name: `${userData.first_name} ${userData.last_name}`,
                         avatarUrl: null,
+                        isAdmin: userData.is_admin || false,
                     });
                 } else {
                     localStorage.removeItem('token');
@@ -60,6 +61,10 @@ export default function Header( {
 
     const handleEditUser = () => {
         navigate('/edit-user');
+    }
+
+    const handleAdminPanel = () => {
+        navigate('/admin');
     }
 
     return (
@@ -117,6 +122,14 @@ export default function Header( {
                             >
                                 Sign Out
                             </button>
+                            {user.isAdmin && (
+                                <button
+                                    onClick={handleAdminPanel}
+                                    className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold border-t border-[#98A1B6]"
+                                >
+                                    Admin Portal
+                                </button>
+                            )}
                         </div>
                         
                     )}

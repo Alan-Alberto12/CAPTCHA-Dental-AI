@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from '../config';
 
-
 function Login() {
     const navigate = useNavigate();
     const [email, setEmail] = useState("");
