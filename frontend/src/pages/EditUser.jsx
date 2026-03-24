@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { API_URL } from '../config';
-
 
 export default function EditUser() {
   const navigate = useNavigate();
@@ -30,7 +28,7 @@ export default function EditUser() {
       }
 
       try {
-        const response = await fetch(`${API_URL}/auth/me`, {
+        const response = await fetch('http://127.0.0.1:8000/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -103,7 +101,7 @@ export default function EditUser() {
         updateData.password = formData.password;
       }
 
-      const response = await fetch(`${API_URL}/auth/editUser`, {
+      const response = await fetch('http://127.0.0.1:8000/auth/editUser', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
