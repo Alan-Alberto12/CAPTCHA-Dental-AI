@@ -35,7 +35,6 @@ export function usePresignedImages(initialSession, onRefresh) {
     const handleImageError = useCallback(async (imageId) => {
         // Prevent multiple simultaneous refreshes
         if (refreshInProgress.current) {
-            console.log('🔄 Refresh already in progress, skipping...');
             return;
         }
 
@@ -45,8 +44,6 @@ export function usePresignedImages(initialSession, onRefresh) {
             setRefreshError('Unable to load images. Please refresh the page.');
             return;
         }
-
-        console.log('⚠️ Image failed to load (likely expired URL), refreshing session...', imageId);
 
         refreshInProgress.current = true;
         setIsRefreshing(true);
@@ -58,7 +55,6 @@ export function usePresignedImages(initialSession, onRefresh) {
             const freshSession = await onRefresh();
 
             if (freshSession) {
-                console.log('✅ Session refreshed with new presigned URLs');
                 setSession(freshSession);
                 // Clear failed images after successful refresh
                 setTimeout(() => {

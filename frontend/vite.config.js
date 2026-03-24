@@ -10,4 +10,9 @@ export default defineConfig({
     strictPort: true,
     watch: { usePolling: true },
   },
+  preview: {
+    host: '0.0.0.0',
+    port: 8080,
+    allowedHosts: ['dentag-app-28tyr.ondigitalocean.app'],
+  },
 })

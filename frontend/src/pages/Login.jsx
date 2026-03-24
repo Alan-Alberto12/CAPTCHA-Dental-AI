@@ -34,24 +34,20 @@ function Login() {
     }, []);
 
     const handleEmailConfirmation = async (token) => {
-        console.log("Attempting email confirmation with token:", token);
         try {
+            
             const response = await fetch(`${API_URL}/auth/confirm-email`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ token }),
             });
 
-            console.log("Email confirmation response status:", response.status);
-
             if (response.ok) {
                 const data = await response.json();
-                console.log("Email confirmation success:", data);
                 setEmailConfirmationStatus('success');
                 setShowEmailConfirmation(true);
             } else {
                 const errorData = await response.json();
-                console.log("Email confirmation error response:", errorData);
                 setEmailConfirmationStatus('error');
                 setShowEmailConfirmation(true);
             }
@@ -98,7 +94,6 @@ function Login() {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log("Login successful:", data);
                 setMessage("Login successful!");
                 // Store auth token if provided (backend returns 'access_token')
                 if (data.access_token) {
@@ -108,7 +103,6 @@ function Login() {
                 navigate('/dashboard');
             } else {
                 const errorData = await response.json();
-                console.log("Error response:", errorData);
 
                 // Handle different error response formats
                 let errorMessage = "Email or Password is incorrect";

@@ -26,8 +26,7 @@ from models.user import (
     SessionQuestion,
     Annotation,
     AnnotationImage,
-    UserStats,
-    Prediction,
+    UserStats
 )
 
 # this is the Alembic Config object, which provides

@@ -3,8 +3,9 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from '../config';
 
+
 export default function Header( {
-    title = "Dental AI",
+    title = "DenTag",
 }) {
     const navigate = useNavigate();
     const [user, setUser] = useState({ name: "Loading...", avatarUrl: null, isAdmin: false });
@@ -109,16 +110,17 @@ export default function Header( {
                     {showDropdown && (
                         <div className="absolute right-0 mt-2 w-40 bg-[#F4EBD3] rounded-lg shadow-lg border border-[#98A1B6] z-50">
                             <button
-                                onClick={handleSignOut}
-                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
-                            >
-                                Sign Out
-                            </button>
-                            <button
                                 onClick={handleEditUser}
                                 className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
                             >
                                 Edit Account
+                            </button>
+                            
+                            <button
+                                onClick={handleSignOut}
+                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
+                            >
+                                Sign Out
                             </button>
                             {user.isAdmin && (
                                 <button
