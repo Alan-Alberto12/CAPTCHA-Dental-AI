@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-
-const API = 'http://127.0.0.1:8000';
+import { API_URL } from '../config';
 
 function authHeaders() {
   const token = localStorage.getItem('token');
@@ -230,19 +229,21 @@ export default function Leaderboard() {
     setLoading(true);
     setError(null);
     try {
-      const lbRes = await fetch(`${API}/leaderboard`);
+      // Public leaderboard — no auth required
+      const lbRes = await fetch(`${API_URL}/leaderboard`);
       if (!lbRes.ok) throw new Error(`Failed to load leaderboard (${lbRes.status})`);
       const lbData = await lbRes.json();
       setLeaderboardData(lbData);
 
+      // My stats — only if logged in
       const token = localStorage.getItem('token');
       if (token) {
-        const meRes = await fetch(`${API}/leaderboard/me`, { headers: authHeaders() });
+        const meRes = await fetch(`${API_URL}/leaderboard/me`, { headers: authHeaders() });
         if (meRes.ok) {
           const meData = await meRes.json();
           setMyStats(meData);
         }
-        // If 401/403, just leave myStats null — user sees leaderboard but not their stats
+        // If 401/403, leave myStats null — user still sees leaderboard
       }
     } catch (e) {
       setError(e.message);

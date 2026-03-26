@@ -6,7 +6,6 @@ import Play from './pages/PlayPage'
 import Leaderboard from './pages/Leaderboard'
 import EditUser from './pages/EditUser'
 import ProtectedLayout from './layouts/ProtectedLayout'
-import Admin from './pages/Admin'
 
 function App() {
   return (
@@ -17,7 +16,6 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/play" element={<Play />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
-        <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="/edit-user" element={<EditUser />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
