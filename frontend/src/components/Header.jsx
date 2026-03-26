@@ -1,12 +1,14 @@
 // frontend/src/components/header.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { API_URL } from '../config';
+
 
 export default function Header( {
-    title = "Dental AI",
+    title = "DenTag",
 }) {
     const navigate = useNavigate();
-    const [user, setUser] = useState({ name: "Loading...", avatarUrl: null });
+    const [user, setUser] = useState({ name: "Loading...", avatarUrl: null, isAdmin: false });
     const [showDropdown, setShowDropdown] = useState(false);
 
     // Fetch current user data
@@ -19,7 +21,7 @@ export default function Header( {
             }
 
             try {
-                const response = await fetch('http://127.0.0.1:8000/auth/me', {
+                const response = await fetch(`${API_URL}/auth/me`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                     },
@@ -30,6 +32,7 @@ export default function Header( {
                     setUser({
                         name: `${userData.first_name} ${userData.last_name}`,
                         avatarUrl: null,
+                        isAdmin: userData.is_admin || false,
                     });
                 } else {
                     localStorage.removeItem('token');
@@ -58,6 +61,10 @@ export default function Header( {
 
     const handleEditUser = () => {
         navigate('/edit-user');
+    }
+
+    const handleAdminPanel = () => {
+        navigate('/admin');
     }
 
     return (
@@ -103,16 +110,26 @@ export default function Header( {
                     {showDropdown && (
                         <div className="absolute right-0 mt-2 w-40 bg-[#F4EBD3] rounded-lg shadow-lg border border-[#98A1B6] z-50">
                             <button
-                                onClick={handleSignOut}
-                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
-                            >
-                                Sign Out
-                            </button>
-                            <button
                                 onClick={handleEditUser}
                                 className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
                             >
                                 Edit Account
+                            </button>
+                            
+                            {user.isAdmin && (
+                                <button
+                                    onClick={handleAdminPanel}
+                                    className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
+                                >
+                                    Admin Portal
+                                </button>
+                            )}
+
+                            <button
+                                onClick={handleSignOut}
+                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
+                            >
+                                Sign Out
                             </button>
                         </div>
                         
