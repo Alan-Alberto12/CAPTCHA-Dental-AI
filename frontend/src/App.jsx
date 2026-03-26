@@ -12,10 +12,10 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignUp />} />
-      <Route path="/leaderboard" element={<Leaderboard />} />
       <Route element={<ProtectedLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/play" element={<Play />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
       </Route>
       <Route path="/edit-user" element={<EditUser />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
