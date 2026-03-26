@@ -10,6 +10,9 @@ export default function Dashboard() {
   const [hasInProgressSession, setHasInProgressSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [questionOverviewCount, setQuestionOverviewCount] = useState(0);
+
 
   //fetch data on mount
   useEffect(() => {
@@ -49,6 +52,17 @@ export default function Dashboard() {
       setIsLoading(false);
     }
   };
+
+  const sessionOverviewDisplay = async (sessionId) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/auth/sessions/${sessionId}/overview`, {
+      headers: {'Authorization': `Bearer ${token}` }
+    })
+    if(response.ok) {
+      setQuestionOverviewCount(0)
+      setSelectedSession(await response.json())
+    }
+  }
   
    //Search bar functionality - search by title or session id
   const filteredCases = completedSessions.filter(session => {
@@ -58,7 +72,114 @@ export default function Dashboard() {
     return titleMatch || idMatch;
   });
  
+  if (selectedSession) {
+    const currentQuestion = selectedSession.questions[questionOverviewCount]
+    const selectedImages = selectedSession.selected_images_per_question[currentQuestion.id] ?? []
+
     return (
+      <div className="min-h-screen bg-[#98A1BC] pb-8">
+        <div className="mx-auto w-full max-w-6xl px-3 md:px-4 lg:px-8 pt-6">
+
+          {/* Back button */}
+          <button
+            onClick={() => setSelectedSession(null)}
+            className="text-[#F5EEDC] text-md hover:underline mb-4 inline-block"
+          >
+            ← Back to Dashboard
+          </button>
+
+          {/* Question Prompt */}
+          <div className="mb-3 rounded-lg bg-[#525470] px-6 py-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[#F5EEDC] text-sm opacity-80">
+                Question {questionOverviewCount + 1} of {selectedSession.questions.length}
+              </span>
+            </div>
+            <h1 className="text-xl font-semibold text-[#F5EEDC]">
+              {currentQuestion.question_text}
+            </h1>
+          </div>
+
+          {/* Instructions */}
+          <div className="mb-4 bg-white/10 rounded-md px-4 py-2">
+            <p className="text-[#F5EEDC] text-sm">
+              Selected: {selectedImages.length}
+            </p>
+          </div>
+
+          {/* Image grid (2x2)*/}
+          <div className="grid grid-cols-2 gap-4 mb-6 max-w-md mx-auto">
+            {selectedSession.images.map((image) => {
+              const isSelected = selectedImages.includes(image.id)
+              return (
+                <div
+                  key={image.id}
+                  className={`
+                    relative aspect-square rounded-lg overflow-hidden
+                    ${isSelected
+                      ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
+                      : 'ring-2 ring-[#525470]'
+                    }
+                  `}
+                >
+                  <img
+                    src={image.image_url}
+                    alt={image.filename}
+                    className="w-full h-full object-cover"
+                  />
+                  {isSelected && (
+                    <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
+                      <div className="bg-[#525470] text-[#F5EEDC] rounded-full w-12 h-12 flex items-center justify-center text-2xl font-bold">
+                        ✓
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-lg mx-auto">
+          <button
+            onClick={() => setQuestionOverviewCount(i => Math.max(0, i - 1))}
+            className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
+          >
+            ← Previous
+          </button>
+          <button
+            disabled
+            className="rounded-lg px-4 py-3 font-medium bg-gray-400 text-gray-200 cursor-not-allowed"
+          >
+            Already Submitted
+          </button>
+          <button
+            onClick={() => setQuestionOverviewCount(i => Math.min(selectedSession.questions.length - 1, i + 1))}
+            className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
+          >
+            Next →
+          </button>
+        </div>
+
+        {/* Navigation Dots */}
+        <div className="mt-8 flex justify-center gap-2">
+          {selectedSession.questions.map((q, idx) => (
+            <button
+              key={q.id}
+              onClick={() => setQuestionOverviewCount(idx)}
+              className={`w-3 h-3 rounded-full transition-all ${
+                idx === questionOverviewCount ? 'bg-[#F5EEDC] w-8' : 'bg-[#525470]'
+              }`}
+            />
+          ))}
+        </div>
+
+      </div>
+    </div>
+    )
+  }
+
+  return (
     <div className="min-h-screen bg-[#98A1BC] pb-20 md:pb-6">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -110,6 +231,7 @@ export default function Dashboard() {
             {filteredCases.map((session) => (
               <div 
                 key={session.session_id} 
+                onClick={() => sessionOverviewDisplay(session.session_id)}
                 className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-hidden hover:bg-[#DED3C4] transition-colors cursor-pointer"
               >
                 <div className="p-4">

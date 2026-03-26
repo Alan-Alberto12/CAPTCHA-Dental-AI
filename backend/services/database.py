@@ -11,7 +11,11 @@ if not DATABASE_URL:
 logging.basicConfig(level=logging.INFO)
 logging.getLogger(__name__).info(f"Connecting to DB host: {DATABASE_URL.split('@')[-1].split('/')[0]}")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
