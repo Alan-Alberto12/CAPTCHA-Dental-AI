@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 # user schemas
 class UserBase(BaseModel):
@@ -39,7 +39,7 @@ class UserResponse(UserBase):
     id: int
     challenge_id: int
     answer: str
-    is_correct: bool | None
+    is_correct: Optional[bool]
     created_at: datetime
 
     class Config:
@@ -80,9 +80,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # --- email (MailHog in dev) ---
-    SMTP_HOST: str = "mailhog"
-    SMTP_PORT: int = 1025
+    # --- email (Brevo SMTP) ---
+    SMTP_HOST: str = "smtp-relay.brevo.com"
+    SMTP_PORT: int = 587
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
     MAIL_FROM: str = "no-reply@captcha.local"
@@ -137,12 +137,17 @@ class QuestionResponse(BaseModel):
 class SessionResponse(BaseModel):
     id: int
     user_id: int
+    title: Optional[str] = None
     is_completed: bool
     started_at: datetime
     completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class SessionTitleUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
 
 
 class AnnotationCreate(BaseModel):
@@ -195,3 +200,38 @@ class ChallengeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ML prediction schemas
+class PredictionResponse(BaseModel):
+    prediction_id: int
+    image_id: int
+    label: str
+    confidence: float
+    model: str
+
+
+class ModelStatusResponse(BaseModel):
+    available: bool
+    architecture: Optional[str] = None
+    best_val_acc: Optional[float] = None
+#Admin user stats overview
+class AdminUserOverview(BaseModel):
+    user_id: int
+    email: str
+    username: str
+    is_admin: bool
+    is_active: bool
+    is_verified: bool
+
+    total_sessions: int
+    completed_sessions: int
+    total_annotations: int
+    last_session_at: Optional[datetime] = None
+
+class AdminAllUsersOverview(BaseModel):
+    total_users: int
+    total_annotations: int
+    total_sessions: int
+    total_completed_sessions: int
+    users: List[AdminUserOverview]
