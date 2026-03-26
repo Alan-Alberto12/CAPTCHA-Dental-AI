@@ -23,6 +23,7 @@ export default function PlayPage() {
     const [sessionTitle, setSessionTitle] = useState("");
     const [isSavingTitle, setIsSavingTitle] = useState(false);
     const [titleSaved, setTitleSaved] = useState(false);
+    const [leaderboardPoints, setLeaderboardPoints] = useState(null);
 
     // Prevent duplicate session fetches (React StrictMode protection)
     const hasFetchedSession = useRef(false);
@@ -186,9 +187,10 @@ export default function PlayPage() {
 
                 // Check if all questions answered
                 if (newAnsweredQuestions.size === session.questions.length) {
-                    //Finalize session if all questions have been
+                    //Finalize session if session has been completed
                     setSessionCompleted(true);
                     setError(null);
+                    awardPoints(session.session_id);
                 } else {
                     //Go to next question if there's still any left
                     handleNextQuestion();
@@ -274,11 +276,32 @@ export default function PlayPage() {
         }
     };
 
+    const awardPoints = async (sessionId) => {
+        try {
+            const token = localStorage.getItem("token");
+            if (!token) return;
+
+            const response = await fetch(`${API_URL}/leaderboard/session/complete/${sessionId}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setLeaderboardPoints(data);
+                console.log("Points awarded:", data);
+            }
+        } catch (err) {
+            console.error("Error awarding points:", err);
+        }
+    };
+
     const handleNewSession = () => {
         hasFetchedSession.current = false;
         setSessionTitle("");
         setTitleSaved(false);
         fetchNewSession(true); // Force new session
+        setLeaderboardPoints(null);
     };
 
     // Loading state
@@ -481,6 +504,22 @@ export default function PlayPage() {
                             <p className="text-[#F5EEDC] opacity-80 mb-4">
                                 You answered all {session.questions.length} questions.
                             </p>
+
+                            {/* Points Awarded Banner */}
+                            {leaderboardPoints && (
+                                <div className="mb-4 bg-yellow-400/20 border border-yellow-400 rounded-xl px-4 py-4">
+                                    <p className="text-yellow-300 font-bold text-lg mb-2">
+                                        +{leaderboardPoints.total_awarded} pts earned!
+                                    </p>
+                                    <div className="space-y-1">
+                                        {leaderboardPoints.breakdown.map((item, i) => (
+                                            <p key={i} className="text-[#F5EEDC] text-xs">
+                                                +{item.points} — {item.reason.replace(/_/g, ' ')}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Session Title Input */}
                             <div className="mt-4 text-left">
