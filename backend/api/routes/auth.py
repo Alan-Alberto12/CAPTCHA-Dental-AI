@@ -8,6 +8,7 @@ import secrets
 import hashlib
 import zipfile
 import io
+import random
 
 from services.database import get_db
 from services.s3_service import s3_service
@@ -488,7 +489,7 @@ def get_completed_sessions(
             SessionQuestion.session_id == session.id
         ).count()
 
-        #get the first image for this session (thumbnail on Dashboard tab)
+        # get the first image for this session (thumbnail on Dashboard tab)
         session_first_image = db.query(SessionImage).filter(
             SessionImage.session_id == session.id
         ).order_by(SessionImage.image_order).first()
@@ -510,15 +511,90 @@ def get_completed_sessions(
 
     return result
 
+@router.get("/sessions/{session_id}/overview")
+def get_session_overview (
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # get overview of a session: submitted responses per question
+    completed_session = db.query(AnnotationSession).filter(AnnotationSession.id == session_id).first()
+
+    # verify the edge cases that could break the app
+    if not completed_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if completed_session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This session doesn't belong to you")
+
+    if not completed_session.is_completed:
+        raise HTTPException(status_code=400, detail="Session is not completed")
+
+    # get images in the same 2x2 order 
+    completed_session_images = (
+        db.query(SessionImage).filter(SessionImage.session_id == completed_session.id)
+        .order_by(SessionImage.image_order).all()
+    )
+    images = []
+    for si in completed_session_images:
+        image = db.query(Image).filter(Image.id == si.image_id).first()
+        if image:
+            image_presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+            images.append({
+                "id": image.id,
+                "filename": image.filename,
+                "image_url": image_presigned_url 
+                    if image_presigned_url 
+                    else image.image_url,
+                "order": si.image_order,
+            })
+
+    # get the questions in order (similar to image implementation right above)
+    completed_session_questions = (
+        db.query(SessionQuestion).filter(SessionQuestion.session_id == completed_session.id)
+        .order_by(SessionQuestion.question_order).all()
+    )
+    questions = []
+    for sq in completed_session_questions:
+        question = db.query(Question).filter(Question.id == sq.question_id).first()
+        if question:
+            questions.append({
+                "id": question.id,
+                "question_text": question.question_text,
+                "question_type": question.question_type,
+                "order": sq.question_order,
+            })
+
+    # arrange image IDs per question
+    selected_images_per_question = {}
+    for sq in completed_session_questions:
+        annotation = db.query(Annotation).filter(Annotation.session_id == completed_session.id, Annotation.question_id == sq.question_id).first()
+        if annotation:
+            selected_ids = [
+                ai.image_id for ai in
+                db.query(AnnotationImage).filter(AnnotationImage.annotation_id == annotation.id).all()
+            ]
+            selected_images_per_question[sq.question_id] = selected_ids
+        else:
+            selected_images_per_question[sq.question_id] = []
+
+    return {
+        "session_id": completed_session.id,
+        "title": completed_session.title,
+        "completed_at": completed_session.completed_at,
+        "images": images,
+        "questions": questions,
+        "selected_images_per_question": selected_images_per_question,
+    }
+    
+
+
 @router.get("/sessions/next")
 def get_next_session(
     force_new: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get or create an annotation session."""
-    import random
-
     if not force_new:
         existing_session = (
             db.query(AnnotationSession)

@@ -457,7 +457,7 @@ export default function PlayPage() {
                 )}
 
                 {message && (
-                    <div className="mb-4 rounded-lg bg-green-500/20 border border-green-500 px-4 py-3">
+                    <div className="mb-4 rounded-lg bg-[#525470] border border-[#525470] px-4 py-3">
                         <p className="text-[#F5EEDC] font-medium">{message}</p>
                     </div>
                 )}
@@ -540,7 +540,7 @@ export default function PlayPage() {
                                         disabled={!sessionTitle.trim() || isSavingTitle || titleSaved}
                                         className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                                             titleSaved
-                                                ? 'bg-green-500 text-white'
+                                                ? 'bg-[#525470] text-white'
                                                 : 'bg-[#F5EEDC] text-[#525470] hover:bg-[#F5EEDC]/90 disabled:opacity-50 disabled:cursor-not-allowed'
                                         }`}
                                     >
@@ -575,7 +575,7 @@ export default function PlayPage() {
                                     ${idx === currentQuestionIndex
                                         ? 'bg-[#F5EEDC] w-8'
                                         : answeredQuestions.has(q.id)
-                                            ? 'bg-green-400'
+                                            ? 'bg-[#525470]'
                                             : 'bg-[#525470]'
                                     }
                                 `}
