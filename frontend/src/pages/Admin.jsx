@@ -285,12 +285,13 @@ function Statistics() {
 
 // Upload Images tab
 function exportUploadResultsCSV(results) {
-  const headers = ['Filename', 'Status', 'Confidence Score', 'Reason'];
+  const headers = ['Filename', 'Upload Status', 'Label', 'Confidence Score', 'Already Existed'];
   const rows = results.map(r => [
     r.filename,
     r.uploaded ? 'Uploaded' : 'Failed',
-    r.confidence != null ? r.confidence.toFixed(2) : '—',
-    r.reason || '',
+    r.label || '—',
+    r.confidence != null ? (r.confidence * 100).toFixed(1) + '%' : '—',
+    r.already_existed ? 'Yes' : 'No',
   ]);
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -357,13 +358,17 @@ function UploadImages() {
         ...(data.results || []).map(r => ({
           filename: r.filename,
           uploaded: true,
+          label: r.label ?? null,
           confidence: r.confidence ?? null,
+          already_existed: r.already_existed ?? false,
           reason: r.reason || null,
         })),
         ...(data.failures || []).map(r => ({
           filename: r.filename,
           uploaded: false,
+          label: r.label ?? null,
           confidence: r.confidence ?? null,
+          already_existed: r.already_existed ?? false,
           reason: r.reason || r.error || null,
         })),
       ];
@@ -454,50 +459,67 @@ function UploadImages() {
       {uploadDone && showResults && (
         <div className="mb-8">
           <h3 className="text-lg font-bold mb-3 text-[#F4EBD3]">Upload Results</h3>
-          <div className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-hidden">
+          <div className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-[#c9bfa8]">
-                  {['Filename', 'Status', 'Confidence Score', 'Notes'].map(h => (
-                    <th key={h} className="text-left px-6 py-4 text-sm font-bold text-[#525470]">{h}</th>
+                  {['Filename', 'Upload Status', 'Label', 'Confidence Score', 'Already Existed'].map(h => (
+                    <th key={h} className="text-left px-6 py-4 text-sm font-bold text-[#525470] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {uploadResults.map((r, i) => (
                   <tr key={i} className={`border-b border-[#ddd3bc] ${i % 2 === 0 ? '' : 'bg-[#EDE4CC]'} hover:bg-[#DED3C4] transition-colors`}>
-                    <td className="px-6 py-3 font-semibold text-sm text-[#2a2a2a] max-w-xs truncate" title={r.filename}>
+                    <td className="px-6 py-3 font-semibold text-sm text-[#2a2a2a] max-w-[180px] truncate" title={r.filename}>
                       {r.filename}
                     </td>
-                    <td className="px-6 py-3">
+                    <td className="px-6 py-3 whitespace-nowrap">
                       <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
                         r.uploaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                       }`}>
                         {r.uploaded ? 'Uploaded ✓' : 'Failed ✗'}
                       </span>
                     </td>
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      {r.label ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+                          r.label === 'needs_expert_review'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {r.label.replace(/_/g, ' ')}
+                        </span>
+                      ) : (
+                        <span className="text-[#aaa]">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-3 text-sm text-[#555]">
                       {r.confidence != null ? (
                         <div className="flex items-center gap-2">
-                          <div className="w-24 h-2 bg-[#ddd3bc] rounded-full overflow-hidden">
+                          <div className="w-20 h-2 bg-[#ddd3bc] rounded-full overflow-hidden flex-shrink-0">
                             <div
                               className={`h-full rounded-full ${r.confidence >= 0.75 ? 'bg-green-500' : r.confidence >= 0.5 ? 'bg-yellow-400' : 'bg-red-400'}`}
                               style={{ width: `${Math.min(r.confidence * 100, 100)}%` }}
                             />
                           </div>
-                          <span className="font-semibold text-[#2a2a2a]">{(r.confidence * 100).toFixed(1)}%</span>
+                          <span className="font-semibold text-[#2a2a2a] whitespace-nowrap">{(r.confidence * 100).toFixed(1)}%</span>
                         </div>
                       ) : (
                         <span className="text-[#aaa]">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-sm text-[#777] italic">
-                      {r.reason || '—'}
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                        r.already_existed ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                      }`}>
+                        {r.already_existed ? 'Yes' : 'No'}
+                      </span>
                     </td>
                   </tr>
                 ))}
                 {uploadResults.length === 0 && (
-                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No results available.</td></tr>
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No results available.</td></tr>
                 )}
               </tbody>
             </table>
