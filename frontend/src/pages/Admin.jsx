@@ -284,12 +284,31 @@ function Statistics() {
 }
 
 // Upload Images tab
+function exportUploadResultsCSV(results) {
+  const headers = ['Filename', 'Upload Status', 'Label', 'Confidence Score', 'Already Existed'];
+  const rows = results.map(r => [
+    r.filename,
+    r.uploaded ? 'Uploaded' : 'Failed',
+    r.label || '—',
+    r.confidence != null ? (r.confidence * 100).toFixed(1) + '%' : '—',
+    r.already_existed ? 'Yes' : 'No',
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'upload_results.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function UploadImages() {
   const [uploads, setUploads] = useState([]);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState(null);
   const [uploadError, setUploadError] = useState(null);
+  const [uploadResults, setUploadResults] = useState(null); // null = no results yet
+  const [showResults, setShowResults] = useState(false);
   const fileRef = useRef();
 
   const handleFiles = async (files) => {
@@ -304,10 +323,11 @@ function UploadImages() {
       status: 'Uploading...',
     }));
     setUploads(prev => [...prev, ...previews]);
-
     setUploading(true);
     setUploadMsg(null);
     setUploadError(null);
+    setUploadResults(null);
+    setShowResults(false);
 
     try {
       const formData = new FormData();
@@ -322,15 +342,37 @@ function UploadImages() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Upload failed');
 
-      const successNames = new Set((data.results || []).map(r => r.filename));
-      const failedNames = new Set((data.failures || []).map(r => r.filename));
+      const successMap = {};
+      (data.results || []).forEach(r => { successMap[r.filename] = r; });
+      const failedMap = {};
+      (data.failures || []).forEach(r => { failedMap[r.filename] = r; });
 
       setUploads(prev => prev.map(u => {
-        if (successNames.has(u.name)) return { ...u, status: 'Uploaded ✓' };
-        if (failedNames.has(u.name)) return { ...u, status: 'Failed ✗' };
+        if (successMap[u.name]) return { ...u, status: 'Uploaded ✓' };
+        if (failedMap[u.name])  return { ...u, status: 'Failed ✗' };
         return u;
       }));
 
+      // Build unified results array for the results table
+      const combined = [
+        ...(data.results || []).map(r => ({
+          filename: r.filename,
+          uploaded: true,
+          label: r.label ?? null,
+          confidence: r.confidence ?? null,
+          already_existed: r.already_existed ?? false,
+          reason: r.reason || null,
+        })),
+        ...(data.failures || []).map(r => ({
+          filename: r.filename,
+          uploaded: false,
+          label: r.label ?? null,
+          confidence: r.confidence ?? null,
+          already_existed: r.already_existed ?? false,
+          reason: r.reason || r.error || null,
+        })),
+      ];
+      setUploadResults(combined);
       setUploadMsg(`Uploaded ${data.uploaded} image(s)${data.failed > 0 ? `, ${data.failed} failed` : ''}.`);
     } catch (e) {
       setUploadError(e.message);
@@ -343,6 +385,8 @@ function UploadImages() {
   };
 
   const remove = (id) => setUploads(prev => prev.filter(u => u.id !== id));
+
+  const uploadDone = !uploading && uploadResults !== null;
 
   return (
     <div>
@@ -361,7 +405,7 @@ function UploadImages() {
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={e => { e.preventDefault(); setDragging(false); if (!uploading) handleFiles(e.dataTransfer.files); }}
-        className={`border-4 border-dashed rounded-3xl p-12 text-center transition-colors mb-8 ${
+        className={`border-4 border-dashed rounded-3xl p-12 text-center transition-colors mb-6 ${
           uploading
             ? 'opacity-50 cursor-not-allowed border-[#c9bfa8] bg-[#F4EBD3]'
             : dragging
@@ -385,6 +429,103 @@ function UploadImages() {
         </p>
         <p className="text-sm text-[#777]">Multiple files supported</p>
       </div>
+
+      {/* Post-upload action buttons */}
+      {uploadDone && (
+        <div className="flex items-center gap-3 mb-8">
+          <button
+            onClick={() => setShowResults(prev => !prev)}
+            className="flex items-center gap-2 bg-[#F4EBD3] border-2 border-[#c9bfa8] hover:bg-[#DED3C4] text-[#2a2a2a] font-semibold px-5 py-2.5 rounded-2xl transition-colors shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6h13M9 11H3m6 6H3m6-3H3M20 7l-3-3-3 3" />
+            </svg>
+            {showResults ? 'Hide Upload Results' : 'View Upload Results'}
+          </button>
+          <button
+            onClick={() => exportUploadResultsCSV(uploadResults)}
+            className="flex items-center gap-2 bg-[#525470] hover:bg-[#3e3f5a] text-white font-semibold px-5 py-2.5 rounded-2xl transition-colors shadow-sm"
+            title="Download results as CSV"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12v6m0 0l-3-3m3 3l3-3M12 3v9" />
+            </svg>
+            Download CSV
+          </button>
+        </div>
+      )}
+
+      {/* Upload results table */}
+      {uploadDone && showResults && (
+        <div className="mb-8">
+          <h3 className="text-lg font-bold mb-3 text-[#F4EBD3]">Upload Results</h3>
+          <div className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-[#c9bfa8]">
+                  {['Filename', 'Upload Status', 'Label', 'Confidence Score', 'Already Existed'].map(h => (
+                    <th key={h} className="text-left px-6 py-4 text-sm font-bold text-[#525470] whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {uploadResults.map((r, i) => (
+                  <tr key={i} className={`border-b border-[#ddd3bc] ${i % 2 === 0 ? '' : 'bg-[#EDE4CC]'} hover:bg-[#DED3C4] transition-colors`}>
+                    <td className="px-6 py-3 font-semibold text-sm text-[#2a2a2a] max-w-[180px] truncate" title={r.filename}>
+                      {r.filename}
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                        r.uploaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {r.uploaded ? 'Uploaded ✓' : 'Failed ✗'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      {r.label ? (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+                          r.label === 'needs_expert_review'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}>
+                          {r.label.replace(/_/g, ' ')}
+                        </span>
+                      ) : (
+                        <span className="text-[#aaa]">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-[#555]">
+                      {r.confidence != null ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 h-2 bg-[#ddd3bc] rounded-full overflow-hidden flex-shrink-0">
+                            <div
+                              className={`h-full rounded-full ${r.confidence >= 0.75 ? 'bg-green-500' : r.confidence >= 0.5 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                              style={{ width: `${Math.min(r.confidence * 100, 100)}%` }}
+                            />
+                          </div>
+                          <span className="font-semibold text-[#2a2a2a] whitespace-nowrap">{(r.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                      ) : (
+                        <span className="text-[#aaa]">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                        r.already_existed ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                      }`}>
+                        {r.already_existed ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {uploadResults.length === 0 && (
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No results available.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {uploads.length > 0 && (
         <>
