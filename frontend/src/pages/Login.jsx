@@ -102,7 +102,11 @@ function Login() {
                 // Redirect to dashboard
                 navigate('/dashboard');
             } else {
-                const errorData = await response.json();
+                let errorData = {};
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    errorData = await response.json();
+                }
 
                 // Handle different error response formats
                 let errorMessage = "Email or Password is incorrect";

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
 
 from models.user import PointTransaction, UserStats, DailySessionCount, AnnotationSession, Annotation
+from services.streak_service import streak_service
 
 
 class PointsService:

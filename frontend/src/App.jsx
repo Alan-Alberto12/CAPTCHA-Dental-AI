@@ -1,11 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import ProtectedLayout from './layouts/ProtectedLayout'
 import Login from './pages/Login'
 import SignUp from './pages/SignUp'
 import Dashboard from './pages/Dashboard'
 import Play from './pages/PlayPage'
 import Leaderboard from './pages/Leaderboard'
 import EditUser from './pages/EditUser'
-import ProtectedLayout from './layouts/ProtectedLayout'
 import Admin from './pages/Admin'
 
 function App() {
