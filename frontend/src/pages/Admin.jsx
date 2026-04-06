@@ -348,7 +348,11 @@ function UploadImages() {
       (data.failures || []).forEach(r => { failedMap[r.filename] = r; });
 
       setUploads(prev => prev.map(u => {
-        if (successMap[u.name]) return { ...u, status: 'Uploaded ✓' };
+        if (successMap[u.name]) {
+          const r = successMap[u.name];
+          const savedToDB = r.label === 'needs_expert_review' || r.already_existed;
+          return { ...u, status: savedToDB ? 'Uploaded ✓' : 'Not Uploaded' };
+        }
         if (failedMap[u.name])  return { ...u, status: 'Failed ✗' };
         return u;
       }));
@@ -475,11 +479,16 @@ function UploadImages() {
                       {r.filename}
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                        r.uploaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {r.uploaded ? 'Uploaded ✓' : 'Failed ✗'}
-                      </span>
+                      {(() => {
+                        const savedToDB = r.uploaded && (r.label === 'needs_expert_review' || r.already_existed);
+                        const style = !r.uploaded
+                          ? 'bg-red-100 text-red-700'
+                          : savedToDB
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700';
+                        const label = !r.uploaded ? 'Failed ✗' : savedToDB ? 'Uploaded ✓' : 'Not Uploaded';
+                        return <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${style}`}>{label}</span>;
+                      })()}
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
                       {r.label ? (
@@ -546,8 +555,9 @@ function UploadImages() {
                   <p className="font-semibold text-sm text-[#2a2a2a] truncate">{img.name}</p>
                   <p className="text-xs text-[#777] mt-0.5">{img.size}</p>
                   <span className={`inline-block mt-2 text-sm font-bold px-2 py-0.5 rounded-full ${
-                    img.status === 'Uploaded ✓' ? 'bg-green-100 text-green-700' :
-                    img.status === 'Failed ✗'   ? 'bg-red-100 text-red-700' :
+                    img.status === 'Uploaded ✓'  ? 'bg-green-100 text-green-700' :
+                    img.status === 'Not Uploaded' ? 'bg-yellow-100 text-yellow-700' :
+                    img.status === 'Failed ✗'    ? 'bg-red-100 text-red-700' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
                     {img.status}
