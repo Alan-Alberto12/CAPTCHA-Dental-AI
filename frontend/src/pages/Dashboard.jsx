@@ -237,7 +237,7 @@ export default function Dashboard() {
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="font-bold text-lg truncate" title={session.title || `Session ${session.session_id}`}>
-                      {session.title || `Session ${session.session_id}`}
+                      {session.title || `Session ${session.session_number}`}
                     </h3>
                     <span className="bg-green-400 px-3 py-1 rounded-md font-bold text-sm flex-shrink-0">
                       C

@@ -482,8 +482,12 @@ def get_completed_sessions(
         AnnotationSession.is_completed == True
     ).order_by(AnnotationSession.completed_at.desc()).all()
 
+    total = len(sessions)
     result = []
-    for session in sessions:
+    for index, session in enumerate(sessions):
+
+        session_number = total - index
+
         # Get question count for this session
         question_count = db.query(SessionQuestion).filter(
             SessionQuestion.session_id == session.id
@@ -506,7 +510,8 @@ def get_completed_sessions(
             "started_at": session.started_at,
             "completed_at": session.completed_at,
             "question_count": question_count,
-            "thumbnail_url": thumbnail_url
+            "thumbnail_url": thumbnail_url,
+            "session_number": session_number,
         })
 
     return result
@@ -653,8 +658,14 @@ def get_next_session(
             )
             answered_question_ids = [a[0] for a in answered_annotations]
 
+            session_number = db.query(AnnotationSession).filter(
+                AnnotationSession.user_id == current_user.id,
+                AnnotationSession.id <= existing_session.id
+            ).count()
+
             return {
                 "session_id": existing_session.id,
+                "session_number": session_number,
                 "images": images,
                 "questions": questions,
                 "answered_question_ids": answered_question_ids,
