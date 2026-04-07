@@ -79,7 +79,7 @@ function SignUp() {
     };
 
     return (
-      <div className="fixed inset-0 flex justify-center items-center bg-[url('../src/assets/dentalbackground.png')] bg-center">
+      <div className="fixed inset-0 flex justify-center items-center bg-[url('../src/assets/dentalbackground.png')] bg-center bg-cover">
           {/* Modal */}
           {isSubmitted && (
             <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center">
