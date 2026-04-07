@@ -486,11 +486,11 @@ function UploadImages() {
                           style = 'bg-blue-100 text-blue-700';
                         }
                         else if (r.label === 'needs_expert_review') {
-                          message ='Image Requires Further Analysis. Uploaded.';
+                          message ='Requires Further User Analysis. Uploaded.';
                           style = 'bg-green-100 text-green-700';
                         }
                         else if (r.label === 'does_not_need_expert_review') {
-                          message = 'No Further Analysis Needed for Image. Discarded.';
+                          message = 'No Further User Analysis Needed. Discarded.';
                           style = 'bg-yellow-100 text-yellow-700';
                         }
                         else {
