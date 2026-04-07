@@ -1,4 +1,6 @@
 # FastAPI core
+from fileinput import filename
+
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -13,6 +15,7 @@ import random
 from services.database import get_db
 from services.s3_service import s3_service
 from models.user import (
+    Prediction,
     User,
     PasswordResetToken,
     EmailConfirmationToken,
@@ -24,6 +27,7 @@ from models.user import (
     Image,
     Question,
     UserStats,
+    Prediction,
 )
 from schemas.user import (
     UserCreate,
@@ -482,8 +486,12 @@ def get_completed_sessions(
         AnnotationSession.is_completed == True
     ).order_by(AnnotationSession.completed_at.desc()).all()
 
+    total = len(sessions)
     result = []
-    for session in sessions:
+    for index, session in enumerate(sessions):
+
+        session_number = total - index
+
         # Get question count for this session
         question_count = db.query(SessionQuestion).filter(
             SessionQuestion.session_id == session.id
@@ -506,7 +514,8 @@ def get_completed_sessions(
             "started_at": session.started_at,
             "completed_at": session.completed_at,
             "question_count": question_count,
-            "thumbnail_url": thumbnail_url
+            "thumbnail_url": thumbnail_url,
+            "session_number": session_number,
         })
 
     return result
@@ -653,8 +662,14 @@ def get_next_session(
             )
             answered_question_ids = [a[0] for a in answered_annotations]
 
+            session_number = db.query(AnnotationSession).filter(
+                AnnotationSession.user_id == current_user.id,
+                AnnotationSession.id <= existing_session.id
+            ).count()
+
             return {
                 "session_id": existing_session.id,
+                "session_number": session_number,
                 "images": images,
                 "questions": questions,
                 "answered_question_ids": answered_question_ids,
@@ -918,7 +933,9 @@ async def import_images_file(
         # Check DB first — skip S3 upload entirely if already saved
         existing = db.query(Image).filter(Image.filename == filename).first()
         if existing:
-            return {"filename": filename, "image_url": existing.image_url, "label": "needs_expert_review", "confidence": None, "saved_to_db": True, "already_existed": True}, None
+            existing_prediction = db.query(Prediction).filter(Prediction.image_id == existing.id).order_by(Prediction.id.desc()).first()
+            return {"filename": filename, "image_url": existing.image_url, "label": existing_prediction.predicted_label if existing_prediction else None, "confidence": existing_prediction.confidence if existing_prediction else None, "saved_to_db": True, "already_existed": True}, None
+
 
         s3_url = s3_service.upload_file(
             file_data=file_data,
@@ -944,6 +961,17 @@ async def import_images_file(
             db.add(Image(filename=filename, image_url=s3_url))
             db.commit()
             saved_to_db = True
+            # Save prediction to DB
+            image_prediction = db.query(Image).filter(Image.filename == filename).first()
+            if image_prediction and confidence is not None:
+                db.add(Prediction(
+                    image_id=image_prediction.id,
+                    model_name=prediction_service.arch,
+                    predicted_label=label,
+                    confidence=confidence,
+                    model_version="latest",
+                ))
+                db.commit()
 
         return {"filename": filename, "image_url": s3_url, "label": label, "confidence": confidence, "saved_to_db": saved_to_db, "already_existed": False}, None
 

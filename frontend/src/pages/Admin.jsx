@@ -351,7 +351,7 @@ function UploadImages() {
         if (successMap[u.name]) {
           const r = successMap[u.name];
           const savedToDB = r.label === 'needs_expert_review' || r.already_existed;
-          return { ...u, status: savedToDB ? 'Uploaded ✓' : 'Not Uploaded' };
+          return { ...u, status: r.already_existed ? 'Already Uploaded' :savedToDB ? 'Uploaded' : 'Not Uploaded' };
         }
         if (failedMap[u.name])  return { ...u, status: 'Failed ✗' };
         return u;
@@ -467,8 +467,8 @@ function UploadImages() {
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-[#c9bfa8]">
-                  {['Filename', 'Upload Status', 'Label', 'Confidence Score', 'Already Existed'].map(h => (
-                    <th key={h} className="text-left px-6 py-4 text-sm font-bold text-[#525470] whitespace-nowrap">{h}</th>
+                  {['Filename', 'Upload Status', 'Model Label', 'Confidence Score'].map(h => (
+                    <th key={h} className="text-left px-8 py-4 text-sm font-bold text-[#525470] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -480,23 +480,30 @@ function UploadImages() {
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
                       {(() => {
-                        const savedToDB = r.uploaded && (r.label === 'needs_expert_review' || r.already_existed);
-                        const style = !r.uploaded
-                          ? 'bg-red-100 text-red-700'
-                          : savedToDB
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-yellow-100 text-yellow-700';
-                        const label = !r.uploaded ? 'Failed ✗' : savedToDB ? 'Uploaded ✓' : 'Not Uploaded';
-                        return <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${style}`}>{label}</span>;
+                        let message, style;
+                        if (r.already_existed) {
+                          message ='Image Is Already in Database';
+                          style = 'bg-blue-100 text-blue-700';
+                        }
+                        else if (r.label === 'needs_expert_review') {
+                          message ='Image Requires Further Analysis. Uploaded.';
+                          style = 'bg-green-100 text-green-700';
+                        }
+                        else if (r.label === 'does_not_need_expert_review') {
+                          message = 'No Further Analysis Needed for Image. Discarded.';
+                          style = 'bg-yellow-100 text-yellow-700';
+                        }
+                        else {
+                          message = 'Upload Failed. Please Try Again';
+                          style = 'bg-red-100 text-red-700';
+                        }
+                        return <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${style}`}>{message}</span>;
                       })()}
+
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
                       {r.label ? (
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
-                          r.label === 'needs_expert_review'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
                           {r.label.replace(/_/g, ' ')}
                         </span>
                       ) : (
@@ -518,17 +525,10 @@ function UploadImages() {
                         <span className="text-[#aaa]">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                        r.already_existed ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                      }`}>
-                        {r.already_existed ? 'Yes' : 'No'}
-                      </span>
-                    </td>
                   </tr>
                 ))}
                 {uploadResults.length === 0 && (
-                  <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No results available.</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No results available.</td></tr>
                 )}
               </tbody>
             </table>
@@ -555,9 +555,10 @@ function UploadImages() {
                   <p className="font-semibold text-sm text-[#2a2a2a] truncate">{img.name}</p>
                   <p className="text-xs text-[#777] mt-0.5">{img.size}</p>
                   <span className={`inline-block mt-2 text-sm font-bold px-2 py-0.5 rounded-full ${
-                    img.status === 'Uploaded ✓'  ? 'bg-green-100 text-green-700' :
+                    img.status === 'Already Uploaded' ? 'bg-blue-100 text-blue-700' :
+                    img.status === 'Uploaded'  ? 'bg-green-100 text-green-700' :
                     img.status === 'Not Uploaded' ? 'bg-yellow-100 text-yellow-700' :
-                    img.status === 'Failed ✗'    ? 'bg-red-100 text-red-700' :
+                    img.status === 'Failed'    ? 'bg-red-100 text-red-700' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
                     {img.status}

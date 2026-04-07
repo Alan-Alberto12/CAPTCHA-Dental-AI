@@ -95,7 +95,7 @@ export default function Dashboard() {
                 Question {questionOverviewCount + 1} of {selectedSession.questions.length}
               </span>
             </div>
-            <h1 className="text-xl font-semibold text-[#F5EEDC]">
+            <h1 className="text-xl md:text-xl font-semibold text-[#F5EEDC]">
               {currentQuestion.question_text}
             </h1>
           </div>
@@ -108,14 +108,14 @@ export default function Dashboard() {
           </div>
 
           {/* Image grid (2x2)*/}
-          <div className="grid grid-cols-2 gap-4 mb-6 max-w-md mx-auto">
+          <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
             {selectedSession.images.map((image) => {
               const isSelected = selectedImages.includes(image.id)
               return (
                 <div
                   key={image.id}
                   className={`
-                    relative aspect-square rounded-lg overflow-hidden
+                    relative rounded-lg overflow-hidden
                     ${isSelected
                       ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
                       : 'ring-2 ring-[#525470]'
@@ -125,7 +125,7 @@ export default function Dashboard() {
                   <img
                     src={image.image_url}
                     alt={image.filename}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                   {isSelected && (
                     <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
@@ -237,7 +237,7 @@ export default function Dashboard() {
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="font-bold text-lg truncate" title={session.title || `Session ${session.session_id}`}>
-                      {session.title || `Session ${session.session_id}`}
+                      {session.title || `Session ${session.session_number}`}
                     </h3>
                     <span className="bg-green-400 px-3 py-1 rounded-md font-bold text-sm flex-shrink-0">
                       C

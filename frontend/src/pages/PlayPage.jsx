@@ -406,7 +406,7 @@ export default function PlayPage() {
                     </div>
 
                     {/* Image Grid (2x2) */}
-                    <div className="grid grid-cols-2 gap-4 mb-6 max-w-md mx-auto">
+                    <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
                         {session.images.map((image) => {
                             const isSelected = selectedImages.includes(image.id);
                             return (
@@ -414,7 +414,7 @@ export default function PlayPage() {
                                     key={image.id}
                                     onClick={() => handleImageClick(image.id)}
                                     className={`
-                                        relative aspect-square rounded-lg overflow-hidden cursor-pointer
+                                        relative rounded-lg overflow-hidden cursor-pointer
                                         transition-all duration-200 transform hover:scale-105
                                         ${isSelected
                                             ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
@@ -425,7 +425,7 @@ export default function PlayPage() {
                                     <PresignedImage
                                         src={image.image_url}
                                         alt={image.filename}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-contain"
                                         onError={() => handleImageError(image.id)}
                                         isRefreshing={isRefreshing}
                                     />
