@@ -37,6 +37,7 @@ from schemas.user import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
     EmailConfirmRequest,
+    ResendConfirmationRequest,
     UserUpdate,
     AdminUserRequest,
     ChallengeResponse,
@@ -318,6 +319,56 @@ def send_confirmation_email_endpoint(
     bg.add_task(send_confirmation_email, to_email=current_user.email, confirm_link=confirm_link)
 
     return {"message": "Confirmation email sent."}
+
+
+@router.post("/resend-confirmation")
+def resend_confirmation_email(
+    payload: ResendConfirmationRequest,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Resend confirmation email. Public endpoint (no auth). Rate-limited to once per 60 seconds."""
+    user = db.query(User).filter(func.lower(User.email) == payload.email.lower()).first()
+
+    # Always return success to avoid email enumeration
+    if not user or user.is_verified:
+        return {"message": "If that email exists and is unverified, a confirmation email has been sent."}
+
+    # Cooldown check: expires = created_at + 1h, so if expires > now + 59min the token is < 60s old
+    cutoff = datetime.now(timezone.utc) + timedelta(seconds=3540)
+    recent_token = (
+        db.query(EmailConfirmationToken)
+        .filter(
+            EmailConfirmationToken.user_id == user.id,
+            EmailConfirmationToken.expires > cutoff,
+            EmailConfirmationToken.used == False,
+        )
+        .first()
+    )
+
+    if recent_token:
+        sent_at = recent_token.expires - timedelta(hours=1)
+        seconds_remaining = int(60 - (datetime.now(timezone.utc) - sent_at).total_seconds())
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Please wait {seconds_remaining} second(s) before requesting another email.",
+        )
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    confirmation = EmailConfirmationToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db.add(confirmation)
+    db.commit()
+
+    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/login?token={raw_token}"
+    bg.add_task(send_confirmation_email, to_email=user.email, confirm_link=confirm_link)
+
+    return {"message": "If that email exists and is unverified, a confirmation email has been sent."}
 
 
 @router.post("/confirm-email")
