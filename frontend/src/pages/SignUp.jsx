@@ -82,7 +82,7 @@ function SignUp() {
       <div className="fixed inset-0 flex justify-center items-center bg-[url('../src/assets/dentalbackground.png')] bg-center bg-cover">
           {/* Modal */}
           {isSubmitted && (
-            <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center">
+            <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center bg-cover">
               <div className="bg-[#555879] rounded-2xl p-16 max-w-2xl w-full mx-4 text-center shadow-2xl">
                 <h1 className="text-5xl font-bold text-[#F4EBD3] mb-10">Email Sent!</h1>
                 <div className="mb-8">
