@@ -214,6 +214,22 @@ export default function PlayPage() {
         }
     };
 
+    // Silently fetch a fresh session (new presigned URLs) without showing a
+    // loading state. Called proactively on navigation so images on the
+    // destination question load on the first attempt rather than waiting for
+    // an onError → refresh cycle.
+    const refreshUrlsInBackground = () => {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        fetch(`${API_URL}/auth/sessions/current`, {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${token}` },
+        })
+            .then((res) => res.ok ? res.json() : null)
+            .then((data) => { if (data) setSessionFromAPI(data); })
+            .catch(() => { /* silently ignore – onError fallback handles it */ });
+    };
+
     const handleNextQuestion = () => {
         if (!session) return;
 
@@ -232,6 +248,9 @@ export default function PlayPage() {
 
         setCurrentQuestionIndex(nextIndex);
         setSelectedImages([]);
+        // Proactively refresh presigned URLs so the next question's images
+        // load immediately even if the original URLs have expired.
+        refreshUrlsInBackground();
     };
 
     const handlePreviousQuestion = () => {
@@ -244,6 +263,7 @@ export default function PlayPage() {
         const prevIndex = (currentQuestionIndex - 1 + session.questions.length) % session.questions.length;
         setCurrentQuestionIndex(prevIndex);
         setSelectedImages([]);
+        refreshUrlsInBackground();
     };
 
     const handleSaveTitle = async () => {
@@ -569,6 +589,7 @@ export default function PlayPage() {
                                     setSelectedImages([]);
                                     setMessage(null);
                                     setError(null);
+                                    refreshUrlsInBackground();
                                 }}
                                 className={`
                                     w-3 h-3 rounded-full transition-all
