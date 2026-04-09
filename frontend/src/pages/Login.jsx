@@ -196,7 +196,7 @@ function Login() {
 
             {/* Email Confirmation Modal - Error */}
             {showEmailConfirmation && emailConfirmationStatus === 'error' && (
-                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center">
+                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 z-50 bg-[url('../src/assets/dentalbackground.png')] bg-center bg-cover">
                     <div className="bg-[#555879] rounded-2xl p-16 max-w-2xl w-full mx-4 text-center shadow-2xl">
                         <h1 className="text-5xl font-bold text-red-300 mb-10">Confirmation Failed</h1>
                         <div className="mb-8">
