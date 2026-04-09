@@ -7,7 +7,10 @@ import os
 import secrets
 import hashlib
 import smtplib
+import logging
 from email.message import EmailMessage
+
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -61,13 +64,17 @@ def hash_reset_token(raw: str) -> str:
 
 def _send_email(msg: EmailMessage) -> None:
     """Send an email via SMTP. Uses STARTTLS + login when credentials are configured."""
-    with smtplib.SMTP(host=settings.SMTP_HOST, port=settings.SMTP_PORT, timeout=10) as smtp:
-        if settings.SMTP_USER and settings.SMTP_PASSWORD:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.ehlo()
-            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        smtp.send_message(msg)
+    try:
+        with smtplib.SMTP(host=settings.SMTP_HOST, port=settings.SMTP_PORT, timeout=10) as smtp:
+            if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.ehlo()
+                smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            smtp.send_message(msg)
+    except Exception as e:
+        logger.error("Failed to send email to %s: %s", msg["To"], e)
+        raise
 
 def send_reset_email(to_email: str, reset_link: str):
     msg = EmailMessage()
