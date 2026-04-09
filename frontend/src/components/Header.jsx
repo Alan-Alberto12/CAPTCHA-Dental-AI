@@ -71,13 +71,18 @@ export default function Header( {
         <header className="sticky top-0 z-50 border-b bg-[#525470] border-[#98A1B6]">
             <div className="grid h-12 w-full grid-cols-2 md:grid-cols-3 items-center px-3 md:px-4 lg:px-8">
 
-                {/* left: title + logo? */}
+                {/* left: title + logo */}
                 <div className="justify-self-start">
                     <Link
                         to="/dashboard"
                         aria-label="Go to dashboard"
-                        className="text-sm font-semibold tracking-tight text-[#DED3C4]"
+                        className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#DED3C4]"
                     >
+                        <img
+                            src="/Dentag Logo.png"
+                            alt="DenTag logo"
+                            className="h-7 w-7 object-contain"
+                        />
                         {title}
                     </Link>
                 </div>

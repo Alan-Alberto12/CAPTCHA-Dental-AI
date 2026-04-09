@@ -13,6 +13,8 @@ function SignUp() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [message, setMessage] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [submittedEmail, setSubmittedEmail] = useState("");
+    const [resendStatus, setResendStatus] = useState("");
 
     const validatePassword = (password) => {
       const minLength = password.length >= 8;
@@ -53,6 +55,7 @@ function SignUp() {
         if(response.ok) {
           const data = await response.json();
           setMessage(`User ${data.username} registered successfully!`);
+          setSubmittedEmail(email);
           setEmail("");
           setUsername("");
           setFullName("");
@@ -63,7 +66,6 @@ function SignUp() {
         } 
         else {
           const errorData = await response.json();
-          // Handle different error response formats
           let errorMessage = "Signup failed.";
           if (typeof errorData.detail === 'string') {
             errorMessage = errorData.detail;
@@ -75,6 +77,20 @@ function SignUp() {
       } catch (error) {
         console.error("Error during signup:", error);
         setMessage("An error occurred. Please try again later.");
+      }
+    };
+
+    const handleResend = async () => {
+      setResendStatus("sending");
+      try {
+        const res = await fetch(`${API_URL}/auth/resend-confirmation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: submittedEmail }),
+        });
+        setResendStatus(res.ok ? "sent" : "error");
+      } catch {
+        setResendStatus("error");
       }
     };
 
@@ -103,6 +119,20 @@ function SignUp() {
                 >
                   Back to Login
                 </button>
+
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendStatus === "sending" || resendStatus === "sent"}
+                    className="text-[#F4EBD3] text-sm hover:underline disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  >
+                    {resendStatus === "sending" ? "Sending…"
+                     : resendStatus === "sent"  ? "✓ Email resent!"
+                     : resendStatus === "error" ? "Failed to send — click to try again"
+                     : "Didn't receive an email? Resend"}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -159,7 +189,6 @@ function SignUp() {
                 </ul>
               </div>
 
-              {/*Register Button */}
               <button
                 type="submit"
                 className="border p-2 rounded-xl bg-[#F4EBD3] text-[#555879] font-bold hover:bg-[#D4C4A8] transition-all"

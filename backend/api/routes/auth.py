@@ -91,6 +91,23 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
+@router.post("/resend-confirmation")
+def resend_confirmation(payload: ForgotPasswordRequest, bg: BackgroundTasks, db: Session = Depends(get_db)):
+    user = db.query(User).filter(func.lower(User.email) == payload.email.lower()).first()
+    if user and not user.is_verified:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        confirmation = EmailConfirmationToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+        db.add(confirmation)
+        db.commit()
+        confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/login?token={raw_token}"
+        bg.add_task(send_confirmation_email, to_email=user.email, confirm_link=confirm_link)
+    return {"message": "A new confirmation link has been sent."}
+
 @router.get("/admin/users")
 def list_all_users(
     db: Session = Depends(get_db),
