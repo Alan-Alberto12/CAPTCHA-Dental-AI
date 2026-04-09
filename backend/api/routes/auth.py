@@ -28,6 +28,8 @@ from models.user import (
     Question,
     UserStats,
     Prediction,
+    UserImagePool,
+    ImageQuestionAssignment,
 )
 from schemas.user import (
     UserCreate,
@@ -423,63 +425,7 @@ def get_current_session(db: Session = Depends(get_db), current_user: User = Depe
     if not session:
         return None
 
-    session_images = (
-        db.query(SessionImage)
-        .filter(SessionImage.session_id == session.id)
-        .order_by(SessionImage.image_order)
-        .all()
-    )
-
-    images = []
-    for si in session_images:
-        image = db.query(Image).filter(Image.id == si.image_id).first()
-        if image:
-            presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
-            images.append(
-                {
-                    "id": image.id,
-                    "filename": image.filename,
-                    "image_url": presigned_url if presigned_url else image.image_url,
-                    "order": si.image_order,
-                }
-            )
-
-    session_questions = (
-        db.query(SessionQuestion)
-        .filter(SessionQuestion.session_id == session.id)
-        .order_by(SessionQuestion.question_order)
-        .all()
-    )
-
-    questions = []
-    for sq in session_questions:
-        question = db.query(Question).filter(Question.id == sq.question_id).first()
-        if question:
-            questions.append(
-                {
-                    "id": question.id,
-                    "question_text": question.question_text,
-                    "question_type": question.question_type,
-                    "order": sq.question_order,
-                }
-            )
-
-    answered_annotations = db.query(Annotation.question_id).filter(Annotation.session_id == session.id).all()
-    answered_question_ids = [a[0] for a in answered_annotations]
-
-    session_number = db.query(AnnotationSession).filter(
-        AnnotationSession.user_id == current_user.id,
-        AnnotationSession.id <= session.id
-    ).count()
-
-    return {
-        "session_id": session.id,
-        "session_number": session_number,
-        "images": images,
-        "questions": questions,
-        "answered_question_ids": answered_question_ids,
-        "started_at": session.started_at,
-    }
+    return _build_session_response(session, db, resumed=True)
 
 @router.get("/sessions/completed")
 def get_completed_sessions(
@@ -605,14 +551,81 @@ def get_session_overview (
     
 
 
+def _build_session_response(session: AnnotationSession, db: Session, resumed: bool) -> dict:
+    """Build the unified session response with per-question images from image_question_assignments."""
+    session_questions = (
+        db.query(SessionQuestion)
+        .filter(SessionQuestion.session_id == session.id)
+        .order_by(SessionQuestion.question_order)
+        .all()
+    )
+
+    answered_question_ids = [
+        a[0] for a in db.query(Annotation.question_id).filter(Annotation.session_id == session.id).all()
+    ]
+
+    session_number = db.query(AnnotationSession).filter(
+        AnnotationSession.user_id == session.user_id,
+        AnnotationSession.id <= session.id,
+    ).count()
+
+    questions_with_images = []
+    for sq in session_questions:
+        question = db.query(Question).filter(Question.id == sq.question_id).first()
+        if not question:
+            continue
+
+        assignments = (
+            db.query(ImageQuestionAssignment)
+            .filter(
+                ImageQuestionAssignment.session_id == session.id,
+                ImageQuestionAssignment.question_id == question.id,
+            )
+            .all()
+        )
+
+        images_data = []
+        for assignment in assignments:
+            img = db.query(Image).filter(Image.id == assignment.image_id).first()
+            if img:
+                presigned = s3_service.generate_presigned_url(img.image_url, expiration=30)
+                images_data.append({
+                    "id": img.id,
+                    "filename": img.filename,
+                    "image_url": presigned or img.image_url,
+                })
+
+        questions_with_images.append({
+            "id": question.id,
+            "question_text": question.question_text,
+            "question_type": question.question_type,
+            "order": sq.question_order,
+            "images": images_data,
+        })
+
+    return {
+        "session_id": session.id,
+        "session_number": session_number,
+        "questions": questions_with_images,
+        "answered_question_ids": answered_question_ids,
+        "started_at": session.started_at,
+        "resumed": resumed,
+    }
+
+
 @router.get("/sessions/next")
 def get_next_session(
     force_new: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    POOL_SIZE = 100
+    IMAGES_PER_QUESTION = 4
+    NUM_QUESTIONS = 3
+
+    # --- Resume existing incomplete session ---
     if not force_new:
-        existing_session = (
+        existing = (
             db.query(AnnotationSession)
             .filter(
                 AnnotationSession.user_id == current_user.id,
@@ -621,135 +634,111 @@ def get_next_session(
             .order_by(AnnotationSession.started_at.desc())
             .first()
         )
+        if existing:
+            return _build_session_response(existing, db, resumed=True)
 
-        if existing_session:
-            session_images = (
-                db.query(SessionImage)
-                .filter(SessionImage.session_id == existing_session.id)
-                .order_by(SessionImage.image_order)
-                .all()
-            )
-
-            images = []
-            for si in session_images:
-                image = db.query(Image).filter(Image.id == si.image_id).first()
-                if image:
-                    presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
-                    images.append(
-                        {
-                            "id": image.id,
-                            "filename": image.filename,
-                            "image_url": presigned_url if presigned_url else image.image_url,
-                            "order": si.image_order,
-                        }
-                    )
-
-            session_questions = (
-                db.query(SessionQuestion)
-                .filter(SessionQuestion.session_id == existing_session.id)
-                .order_by(SessionQuestion.question_order)
-                .all()
-            )
-
-            questions = []
-            for sq in session_questions:
-                question = db.query(Question).filter(Question.id == sq.question_id).first()
-                if question:
-                    questions.append(
-                        {
-                            "id": question.id,
-                            "question_text": question.question_text,
-                            "question_type": question.question_type,
-                            "order": sq.question_order,
-                        }
-                    )
-
-            answered_annotations = (
-                db.query(Annotation.question_id).filter(Annotation.session_id == existing_session.id).all()
-            )
-            answered_question_ids = [a[0] for a in answered_annotations]
-
-            session_number = db.query(AnnotationSession).filter(
-                AnnotationSession.user_id == current_user.id,
-                AnnotationSession.id <= existing_session.id
-            ).count()
-
-            return {
-                "session_id": existing_session.id,
-                "session_number": session_number,
-                "images": images,
-                "questions": questions,
-                "answered_question_ids": answered_question_ids,
-                "started_at": existing_session.started_at,
-                "resumed": True,
-            }
-    # resume existing session if one is in progress
-    if not force_new:
-        existing = get_current_session(db=db, current_user=current_user)
-        if existing and existing.get("questions") and existing.get("images"):
-            return {**existing, "resumed": True}
-
-    num_images = 4
-
-    num_questions = 3
-
-    images = db.query(Image).order_by(func.random()).limit(num_images).all()
-    if len(images) < num_images:
-        raise HTTPException(status_code=404, detail=f"Not enough images available (need {num_images}, found {len(images)})")
-
+    # --- Get the 3 active questions (fixed order, same for everyone) ---
     questions = (
         db.query(Question)
         .filter(Question.active == True)
-        .order_by(func.random())
-        .limit(num_questions)
+        .order_by(Question.id)
+        .limit(NUM_QUESTIONS)
         .all()
     )
-    if len(questions) < num_questions:
-        raise HTTPException(status_code=404, detail=f"Not enough questions available (need {num_questions}, found {len(questions)})")
+    if len(questions) < NUM_QUESTIONS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Not enough active questions (need {NUM_QUESTIONS}, found {len(questions)})",
+        )
 
+    # --- Check / initialise this user's image pool ---
+    pool_image_ids = [
+        r.image_id
+        for r in db.query(UserImagePool.image_id).filter(UserImagePool.user_id == current_user.id).all()
+    ]
+
+    total_possible = len(pool_image_ids) * NUM_QUESTIONS
+    assigned_count = db.query(ImageQuestionAssignment).filter(
+        ImageQuestionAssignment.user_id == current_user.id
+    ).count()
+
+    if not pool_image_ids or assigned_count >= total_possible:
+        # Block exhausted (or first time) — pick a fresh 100 and reset assignments
+        db.query(UserImagePool).filter(UserImagePool.user_id == current_user.id).delete()
+        db.query(ImageQuestionAssignment).filter(ImageQuestionAssignment.user_id == current_user.id).delete()
+        db.flush()
+
+        fresh_images = (
+            db.query(Image)
+            .filter(Image.label == "needs_expert_review")
+            .order_by(func.random())
+            .limit(POOL_SIZE)
+            .all()
+        )
+        if len(fresh_images) < POOL_SIZE:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Not enough labeled images for a new block (need {POOL_SIZE}, found {len(fresh_images)})",
+            )
+        for img in fresh_images:
+            db.add(UserImagePool(user_id=current_user.id, image_id=img.id))
+        db.flush()
+        pool_image_ids = [img.id for img in fresh_images]
+
+    # --- Pick 4 images per question, disjoint within this session ---
+    picked_this_session: set = set()
+    questions_with_image_ids = []  # list of (Question, [image_ids])
+
+    for question in questions:
+        already_assigned = {
+            r.image_id
+            for r in db.query(ImageQuestionAssignment.image_id).filter(
+                ImageQuestionAssignment.user_id == current_user.id,
+                ImageQuestionAssignment.question_id == question.id,
+            ).all()
+        }
+
+        available = [
+            img_id for img_id in pool_image_ids
+            if img_id not in already_assigned and img_id not in picked_this_session
+        ]
+
+        if len(available) < IMAGES_PER_QUESTION:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough available images for question '{question.question_text}' "
+                       f"(need {IMAGES_PER_QUESTION}, found {len(available)})",
+            )
+
+        chosen = random.sample(available, IMAGES_PER_QUESTION)
+        picked_this_session.update(chosen)
+        questions_with_image_ids.append((question, chosen))
+
+    # --- Create the session ---
     session = AnnotationSession(user_id=current_user.id)
     db.add(session)
     db.flush()
 
-    for order, image in enumerate(images, start=1):
-        db.add(SessionImage(session_id=session.id, image_id=image.id, image_order=order))
+    # Store all 12 images flat in session_images (used for thumbnails / overview)
+    all_image_ids = [img_id for _, img_ids in questions_with_image_ids for img_id in img_ids]
+    for order, img_id in enumerate(all_image_ids, start=1):
+        db.add(SessionImage(session_id=session.id, image_id=img_id, image_order=order))
 
-    for order, question in enumerate(questions, start=1):
+    # session_questions + per-question assignments
+    for order, (question, img_ids) in enumerate(questions_with_image_ids, start=1):
         db.add(SessionQuestion(session_id=session.id, question_id=question.id, question_order=order))
+        for img_id in img_ids:
+            db.add(ImageQuestionAssignment(
+                user_id=current_user.id,
+                image_id=img_id,
+                question_id=question.id,
+                session_id=session.id,
+            ))
 
     db.commit()
     db.refresh(session)
 
-    session_number = db.query(AnnotationSession).filter(
-        AnnotationSession.user_id == current_user.id,
-        AnnotationSession.id <= session.id
-    ).count()
-
-    return {
-        "session_id": session.id,
-        "session_number": session_number,
-        "images": [
-            {
-                "id": img.id,
-                "filename": img.filename,
-                "image_url": s3_service.generate_presigned_url(img.image_url, expiration=30) or img.image_url,
-                "order": order,
-            }
-            for order, img in enumerate(images, start=1)
-        ],
-        "questions": [
-            {
-                "id": q.id,
-                "question_text": q.question_text,
-                "question_type": q.question_type,
-                "order": order,
-            }
-            for order, q in enumerate(questions, start=1)
-        ],
-        "answered_question_ids": [],
-        "started_at": session.started_at,
-        "resumed": False,
-    }
+    return _build_session_response(session, db, resumed=False)
 
 
 @router.post("/annotations", status_code=201)

@@ -407,7 +407,7 @@ export default function PlayPage() {
 
                     {/* Image Grid (2x2) */}
                     <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
-                        {session.images.map((image) => {
+                        {(currentQuestion.images || []).map((image) => {
                             const isSelected = selectedImages.includes(image.id);
                             return (
                                 <div
