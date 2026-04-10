@@ -48,6 +48,7 @@ class Image(Base):
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, unique=True, nullable=False)
     image_url = Column(String, nullable=False)
+    label = Column(String, nullable=True)  # "needs_expert_review" | "does_not_need_expert_review" | None
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -157,6 +158,37 @@ class UserStats(Base):
     last_active = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="stats")
+
+
+class UserImagePool(Base):
+    """The personal set of 100 images assigned to a user for their annotation block."""
+    __tablename__ = "user_image_pools"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    image_id = Column(Integer, ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+    image = relationship("Image")
+
+
+class ImageQuestionAssignment(Base):
+    """Tracks which (user, image, question) pairs have been assigned to a session.
+    Unique on (user_id, image_id, question_id) so each pair is assigned exactly once per block."""
+    __tablename__ = "image_question_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    image_id = Column(Integer, ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+    image = relationship("Image")
+    question = relationship("Question")
+    session = relationship("AnnotationSession")
 
 
 class Prediction(Base):
