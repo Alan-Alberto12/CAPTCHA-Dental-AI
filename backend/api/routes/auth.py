@@ -492,61 +492,65 @@ def get_session_overview (
     if not completed_session.is_completed:
         raise HTTPException(status_code=400, detail="Session is not completed")
 
-    # get images in the same 2x2 order 
-    completed_session_images = (
-        db.query(SessionImage).filter(SessionImage.session_id == completed_session.id)
-        .order_by(SessionImage.image_order).all()
-    )
-    images = []
-    for si in completed_session_images:
-        image = db.query(Image).filter(Image.id == si.image_id).first()
-        if image:
-            image_presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
-            images.append({
-                "id": image.id,
-                "filename": image.filename,
-                "image_url": image_presigned_url 
-                    if image_presigned_url 
-                    else image.image_url,
-                "order": si.image_order,
-            })
-
-    # get the questions in order (similar to image implementation right above)
+    # Build questions with their images and selection state embedded
     completed_session_questions = (
         db.query(SessionQuestion).filter(SessionQuestion.session_id == completed_session.id)
         .order_by(SessionQuestion.question_order).all()
     )
+
     questions = []
     for sq in completed_session_questions:
         question = db.query(Question).filter(Question.id == sq.question_id).first()
-        if question:
-            questions.append({
-                "id": question.id,
-                "question_text": question.question_text,
-                "question_type": question.question_type,
-                "order": sq.question_order,
-            })
+        if not question:
+            continue
 
-    # arrange image IDs per question
-    selected_images_per_question = {}
-    for sq in completed_session_questions:
-        annotation = db.query(Annotation).filter(Annotation.session_id == completed_session.id, Annotation.question_id == sq.question_id).first()
+        # Which images were shown for this question
+        assignments = (
+            db.query(ImageQuestionAssignment)
+            .filter(
+                ImageQuestionAssignment.session_id == completed_session.id,
+                ImageQuestionAssignment.question_id == sq.question_id,
+            )
+            .all()
+        )
+
+        # Which of those did the user select
+        annotation = db.query(Annotation).filter(
+            Annotation.session_id == completed_session.id,
+            Annotation.question_id == sq.question_id,
+        ).first()
+        selected_ids = set()
         if annotation:
-            selected_ids = [
+            selected_ids = {
                 ai.image_id for ai in
                 db.query(AnnotationImage).filter(AnnotationImage.annotation_id == annotation.id).all()
-            ]
-            selected_images_per_question[sq.question_id] = selected_ids
-        else:
-            selected_images_per_question[sq.question_id] = []
+            }
+
+        images_data = []
+        for assignment in assignments:
+            img = db.query(Image).filter(Image.id == assignment.image_id).first()
+            if img:
+                presigned = s3_service.generate_presigned_url(img.image_url, expiration=3600)
+                images_data.append({
+                    "id": img.id,
+                    "filename": img.filename,
+                    "image_url": presigned or img.image_url,
+                    "selected": img.id in selected_ids,
+                })
+
+        questions.append({
+            "id": question.id,
+            "question_text": question.question_text,
+            "question_type": question.question_type,
+            "order": sq.question_order,
+            "images": images_data,
+        })
 
     return {
         "session_id": completed_session.id,
         "title": completed_session.title,
         "completed_at": completed_session.completed_at,
-        "images": images,
         "questions": questions,
-        "selected_images_per_question": selected_images_per_question,
     }
     
 
