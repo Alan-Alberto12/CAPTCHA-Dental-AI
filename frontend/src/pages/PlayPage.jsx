@@ -27,6 +27,8 @@ export default function PlayPage() {
 
     // Prevent duplicate session fetches (React StrictMode protection)
     const hasFetchedSession = useRef(false);
+    // Prevent concurrent fetchNewSession calls (race condition guard)
+    const isFetchingSession = useRef(false);
 
     // Presigned URL management with auto-refresh
     const { session, isRefreshing, refreshError, handleImageError } = usePresignedImages(
@@ -67,6 +69,8 @@ export default function PlayPage() {
     }, [currentQuestionIndex, session]);
 
     const fetchNewSession = async (forceNew = false) => {
+        if (isFetchingSession.current) return;
+        isFetchingSession.current = true;
         setIsLoading(true);
         setError(null);
         setMessage(null);
@@ -133,6 +137,7 @@ export default function PlayPage() {
             setError("Network error. Please try again.");
         } finally {
             setIsLoading(false);
+            isFetchingSession.current = false;
         }
     };
 
