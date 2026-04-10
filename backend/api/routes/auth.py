@@ -703,6 +703,15 @@ def get_next_session(
             if img_id not in already_assigned and img_id not in picked_this_session
         ]
 
+        # Near the end of a block, the disjoint constraint may leave fewer than
+        # 4 images for this question. Relax it so the same image can appear
+        # under more than one question within this session rather than failing.
+        if len(available) < IMAGES_PER_QUESTION:
+            available = [
+                img_id for img_id in pool_image_ids
+                if img_id not in already_assigned
+            ]
+
         if len(available) < IMAGES_PER_QUESTION:
             raise HTTPException(
                 status_code=400,
