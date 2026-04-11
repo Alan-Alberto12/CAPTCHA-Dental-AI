@@ -16,7 +16,7 @@ export default function PlayPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [message, setMessage] = useState(null);
-    const [questionStartTime, setQuestionStartTime] = useState(new Date().toISOString());
+    const [questionStartTime, setQuestionStartTime] = useState(null);
 
 
     // Session completion
