@@ -440,7 +440,7 @@ def get_current_session(db: Session = Depends(get_db), current_user: User = Depe
                     images.append ({
                         "id": image.id,
                         "filename": image.filename,
-                        "image_url": s3_service.generate_presigned_url(image.image_url, expiration=30) or image.image_url,
+                        "image_url": s3_service.generate_presigned_url(image.image_url, expiration=1200) or image.image_url,
                         "order": si.image_order,
                     })
             questions.append({
@@ -454,10 +454,11 @@ def get_current_session(db: Session = Depends(get_db), current_user: User = Depe
     answered_annotations = db.query(Annotation.question_id).filter(Annotation.session_id == session.id).all()
     answered_question_ids = [a[0] for a in answered_annotations]
 
-    session_number = db.query(AnnotationSession).filter(
+    completed_count = db.query(AnnotationSession).filter(
         AnnotationSession.user_id == current_user.id,
-        AnnotationSession.id <= session.id
+        AnnotationSession.is_completed == True
     ).count()
+    session_number = completed_count + 1
 
     return {
         "session_id": session.id,
@@ -632,10 +633,11 @@ def get_next_session(
     db.commit()
     db.refresh(session)
 
-    session_number = db.query(AnnotationSession).filter(
+    completed_count = db.query(AnnotationSession).filter(
         AnnotationSession.user_id == current_user.id,
-        AnnotationSession.id <= session.id
+        AnnotationSession.is_completed == True
     ).count()
+    session_number = completed_count + 1
 
     return {
         "session_id": session.id,
@@ -651,7 +653,7 @@ def get_next_session(
                     {
                         "id": img.id,
                         "filename": img.filename,
-                        "image_url": s3_service.generate_presigned_url(img.image_url, expiration=30) or img.image_url,
+                        "image_url": s3_service.generate_presigned_url(img.image_url, expiration=1200) or img.image_url,
                         "order": img_order,
                     }
                     for img_order, img in enumerate(images_per_q_map[q.id], start=1)
