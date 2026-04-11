@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 /**
  * Smart Image component that handles presigned URL expiration
@@ -27,14 +27,8 @@ export default function PresignedImage({
     const [imageError, setImageError] = useState(false);
     const [hasTriedRefresh, setHasTriedRefresh] = useState(false);
 
-    // When the parent provides a new URL (e.g. after a session refresh), reset
-    // error state so the browser actually attempts to load the fresh URL.
-    useEffect(() => {
-        setImageError(false);
-        setHasTriedRefresh(false);
-    }, [src]);
-
     const handleError = () => {
+
         // Only trigger refresh once per image
         if (!hasTriedRefresh && onError) {
             setHasTriedRefresh(true);

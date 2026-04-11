@@ -74,7 +74,7 @@ export default function Dashboard() {
  
   if (selectedSession) {
     const currentQuestion = selectedSession.questions[questionOverviewCount]
-    const selectedCount = currentQuestion.images.filter(img => img.selected).length
+    const selectedImages = selectedSession.selected_images_per_question[currentQuestion.id] ?? []
 
     return (
       <div className="min-h-screen bg-[#98A1BC] pb-8">
@@ -103,37 +103,40 @@ export default function Dashboard() {
           {/* Instructions */}
           <div className="mb-4 bg-white/10 rounded-md px-4 py-2">
             <p className="text-[#F5EEDC] text-sm">
-              Selected: {selectedCount}
+              Selected: {selectedImages.length}
             </p>
           </div>
 
-          {/* Image grid (2x2) — only the 4 images for this question */}
+          {/* Image grid (2x2)*/}
           <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
-            {currentQuestion.images.map((image) => (
-              <div
-                key={image.id}
-                className={`
-                  relative rounded-lg overflow-hidden
-                  ${image.selected
-                    ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
-                    : 'ring-2 ring-[#525470]'
-                  }
-                `}
-              >
-                <img
-                  src={image.image_url}
-                  alt={image.filename}
-                  className="w-full h-full object-contain"
-                />
-                {image.selected && (
-                  <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
-                    <div className="bg-[#525470] text-[#F5EEDC] rounded-full w-12 h-12 flex items-center justify-center text-2xl font-bold">
-                      ✓
+            {selectedSession.images.map((image) => {
+              const isSelected = selectedImages.includes(image.id)
+              return (
+                <div
+                  key={image.id}
+                  className={`
+                    relative rounded-lg overflow-hidden
+                    ${isSelected
+                      ? 'ring-4 ring-[#F5EEDC] ring-offset-2 ring-offset-[#98A1BC]'
+                      : 'ring-2 ring-[#525470]'
+                    }
+                  `}
+                >
+                  <img
+                    src={image.image_url}
+                    alt={image.filename}
+                    className="w-full h-full object-contain"
+                  />
+                  {isSelected && (
+                    <div className="absolute inset-0 bg-[#F5EEDC]/20 flex items-center justify-center">
+                      <div className="bg-[#525470] text-[#F5EEDC] rounded-full w-12 h-12 flex items-center justify-center text-2xl font-bold">
+                        ✓
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              )
+            })}
           </div>
 
         {/* Action Buttons */}
