@@ -71,6 +71,14 @@ export default function Dashboard() {
     const idMatch = `Session ${session.session_id}`.toLowerCase().includes(searchLower);
     return titleMatch || idMatch;
   });
+
+  if (isLoading) {
+    return (
+        <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
+            <div className="text-[#F5EEDC] text-xl font-semibold">Loading Completed Sessions...</div>
+        </div>
+    );
+  }
  
   if (selectedSession) {
     const currentQuestion = selectedSession.questions[questionOverviewCount]

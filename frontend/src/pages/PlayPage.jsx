@@ -18,6 +18,7 @@ export default function PlayPage() {
     const [message, setMessage] = useState(null);
     const [questionStartTime, setQuestionStartTime] = useState(null);
 
+
     // Session completion
     const [sessionCompleted, setSessionCompleted] = useState(false);
     const [sessionTitle, setSessionTitle] = useState("");
@@ -62,7 +63,7 @@ export default function PlayPage() {
     // Start timer when question changes
     useEffect(() => {
         if (session && !sessionCompleted) {
-            setQuestionStartTime(Date.now());
+            setQuestionStartTime(new Date().toISOString());
         }
     }, [currentQuestionIndex, session]);
 
@@ -92,12 +93,6 @@ export default function PlayPage() {
             if (response.ok) {
                 const data = await response.json();
 
-                // Check if this is a resumed session
-                if (data.resumed) {
-                    setMessage("Resuming your previous session...");
-                    // Clear message after 3 seconds
-                    setTimeout(() => setMessage(null), 3000);
-                }
 
                 setSessionFromAPI(data);
 
@@ -117,7 +112,7 @@ export default function PlayPage() {
                 setCurrentQuestionIndex(firstUnansweredIndex);
                 setSelectedImages([]);
                 setSessionCompleted(answeredSet.size === data.questions.length);
-                setQuestionStartTime(Date.now());
+                setQuestionStartTime(new Date().toISOString());
             } else {
                 const errorData = await response.json();
                 setError(errorData.detail || "Failed to load session");
@@ -154,7 +149,7 @@ export default function PlayPage() {
         if (!session || sessionCompleted) return;
 
         const currentQuestion = session.questions[currentQuestionIndex];
-        const timeSpent = (Date.now() - questionStartTime) / 1000; // Convert to seconds
+        const timeSpent = (Date.now() - new Date(questionStartTime).getTime()) / 1000;
 
         setIsLoading(true);
         setError(null);
@@ -308,7 +303,9 @@ export default function PlayPage() {
     if (isLoading && !session) {
         return (
             <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
-                <div className="text-[#F5EEDC] text-xl font-semibold">Loading session...</div>
+                <div className="text-[#F5EEDC] text-xl font-semibold">
+                    Loading Session...
+                </div>
             </div>
         );
     }

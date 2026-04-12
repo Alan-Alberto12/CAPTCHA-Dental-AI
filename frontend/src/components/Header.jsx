@@ -40,7 +40,6 @@ export default function Header( {
                 }
             } catch (error) {
                 console.error('Error fetching user:', error);
-                navigate('/login');
             }
         };
 
