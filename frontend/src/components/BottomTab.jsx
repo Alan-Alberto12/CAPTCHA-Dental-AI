@@ -23,62 +23,70 @@ export default function BottomTabs({ active, onChange }) {
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
             <div className="flex items-center justify-center h-16">
-                <ul className="flex items-center gap-0.5 bg-black/20 rounded-full px-1 h-9">
-                    <BottomNavItem
+                <div className="flex items-center">
+                    <BottomNavPill
                         label="Dashboard"
                         isActive={inferredActive === "dashboard"}
+                        side="left"
                         onClick={() => handleChange("dashboard")}
                     />
                     <BottomPlayButton
                         isActive={inferredActive === "play"}
                         onClick={() => handleChange("play")}
                     />
-                    <BottomNavItem
+                    <BottomNavPill
                         label="Leaderboard"
                         isActive={inferredActive === "leaderboard"}
+                        side="right"
                         onClick={() => handleChange("leaderboard")}
                     />
-                </ul>
+                </div>
             </div>
         </nav>
     );
 }
 
-function BottomNavItem({ label, isActive, onClick }) {
+function BottomNavPill({ label, isActive, side, onClick }) {
+    const isLeft = side === "left";
+
     return (
-        <li>
-            <button
-                type="button"
-                onClick={onClick}
-                className={`block rounded-full px-4 py-1 text-sm font-medium transition-all outline-none cursor-pointer ${
-                    isActive
-                        ? "bg-[#F5EEDC] text-[#525470]"
-                        : "text-[#F5EEDC]/70 hover:text-[#F5EEDC] hover:bg-white/10"
-                }`}
-            >
+        <button
+            type="button"
+            onClick={onClick}
+            className={`relative flex h-9 w-36 items-center rounded-full bg-black/20 p-1 transition-all outline-none cursor-pointer ${
+                isLeft ? "-mr-6 z-0" : "-ml-6 z-0"
+            }`}
+        >
+            <span className={`flex h-full w-full items-center text-sm font-medium transition-all ${
+                isLeft
+                    ? "rounded-l-full rounded-r-none justify-center pl-2 pr-7"
+                    : "rounded-r-full rounded-l-none justify-center pr-2 pl-7"
+            } ${
+                isActive
+                    ? "bg-[#F5EEDC] text-[#525470]"
+                    : "text-[#F5EEDC]/70"
+            }`}>
                 {label}
-            </button>
-        </li>
+            </span>
+        </button>
     );
 }
 
 function BottomPlayButton({ isActive, onClick }) {
     return (
-        <li>
-            <button
-                type="button"
-                onClick={onClick}
-                aria-label="Play"
-                className={`inline-flex h-14 w-14 items-center justify-center rounded-full transition-all outline-none cursor-pointer ${
-                    isActive
-                        ? "bg-[#F5EEDC] text-[#525470]"
-                        : "bg-[#474961] text-[#F5EEDC]/80 hover:text-[#F5EEDC] hover:bg-[#4f516a]"
-                }`}
-            >
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label="Play"
+            className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
+        >
+            <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
+                isActive ? "bg-[#F5EEDC] text-[#525470]" : "text-[#F5EEDC]/80"
+            }`}>
                 <svg viewBox="0 0 24 24" className="h-6 w-6 translate-x-px" fill="currentColor">
                     <polygon points="5,3 19,12 5,21" />
                 </svg>
-            </button>
-        </li>
+            </span>
+        </button>
     );
 }
