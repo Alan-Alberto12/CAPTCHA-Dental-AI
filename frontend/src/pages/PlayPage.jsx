@@ -553,7 +553,7 @@ export default function PlayPage() {
 
                 {/* Question Navigation Dots */}
                 {!sessionCompleted && (
-                    <div className="mt-8 flex justify-center gap-2">
+                    <div className="mt-5 flex justify-center gap-2">
                         {session.questions.map((q, idx) => (
                             <button
                                 key={q.id}
