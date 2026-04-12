@@ -81,7 +81,7 @@ function BottomPlayButton({ isActive, onClick }) {
             className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
         >
             <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
-                isActive ? "bg-[#F5EEDC] text-[#525470]" : "text-[#F5EEDC]/80"
+                isActive ? "bg-emerald-500 text-white" : "text-[#F5EEDC]/80"
             }`}>
                 <svg viewBox="0 0 24 24" className="h-6 w-6 translate-x-px" fill="currentColor">
                     <polygon points="5,3 19,12 5,21" />

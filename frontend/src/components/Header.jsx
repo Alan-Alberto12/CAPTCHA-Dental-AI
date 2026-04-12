@@ -175,7 +175,7 @@ function PlayButton({ to }) {
             className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 hover:bg-[#4f516a]"
         >
             <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
-                isActive ? 'bg-[#F5EEDC] text-[#525470]' : 'text-[#F5EEDC]/80 hover:text-[#F5EEDC]'
+                isActive ? 'bg-emerald-500 text-white' : 'text-[#F5EEDC]/80 hover:text-[#F5EEDC]'
             }`}>
                 <svg viewBox="0 0 24 24" className="h-5 w-5 translate-x-px" fill="currentColor">
                     <polygon points="5,3 19,12 5,21" />
