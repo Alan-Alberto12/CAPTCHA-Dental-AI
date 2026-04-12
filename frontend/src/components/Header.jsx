@@ -84,12 +84,10 @@ export default function Header( {
                 </div>
 
                 {/* center: navigation */}
-                <nav aria-label="Primary" className="justify-self-center hidden md:block">
-                    <ul className="flex items-center gap-0.5 text-sm bg-black/20 rounded-full px-1 h-7">
-                        <NavItem label="Dashboard" to="/dashboard" />
-                        <PlayButton to="/play" />
-                        <NavItem label="Leaderboard" to="/leaderboard" />
-                    </ul>
+                <nav aria-label="Primary" className="justify-self-center hidden md:flex items-center">
+                    <NavPill label="Dashboard" to="/dashboard" side="left" />
+                    <PlayButton to="/play" />
+                    <NavPill label="Leaderboard" to="/leaderboard" side="right" />
                 </nav>
 
                 {/* right: profile */}
@@ -141,23 +139,28 @@ export default function Header( {
     );
 }
 
-function NavItem({ label, to }) {
+function NavPill({ label, to, side }) {
     const location = useLocation();
     const isActive = location.pathname === to;
+    const isLeft = side === 'left';
 
     return (
-        <li>
-            <Link
-                to={to}
-                className={`block rounded-full px-3.5 py-0.5 text-sm font-medium transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 ${
-                    isActive
-                        ? 'bg-[#F5EEDC] text-[#525470] shadow-sm'
-                        : 'text-[#F5EEDC]/70 hover:text-[#F5EEDC] hover:bg-white/10'
-                }`}
-            >
+        <Link
+            to={to}
+            className={`relative flex h-8 w-36 items-center rounded-full bg-black/20 p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 ${
+                isLeft ? '-mr-5 z-0' : '-ml-5 z-0'
+            }`}
+        >
+            <span className={`flex h-full w-full items-center text-sm font-medium transition-all ${
+                isLeft ? 'rounded-l-full rounded-r-none justify-center pl-2 pr-6' : 'rounded-r-full rounded-l-none justify-center pr-2 pl-6'
+            } ${
+                isActive
+                    ? 'bg-[#F5EEDC] text-[#525470]'
+                    : 'text-[#F5EEDC]/70 hover:text-[#F5EEDC]'
+            }`}>
                 {label}
-            </Link>
-        </li>
+            </span>
+        </Link>
     );
 }
 
@@ -166,20 +169,18 @@ function PlayButton({ to }) {
     const isActive = location.pathname === to;
 
     return (
-        <li>
-            <Link
-                to={to}
-                aria-label="Play"
-                className={`inline-flex h-12 w-12 items-center justify-center rounded-full transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 ${
-                    isActive
-                        ? 'bg-[#F5EEDC] text-[#525470]'
-                        : 'bg-[#474961] text-[#F5EEDC]/80 hover:text-[#F5EEDC] hover:bg-[#4f516a]'
-                }`}
-            >
-                <svg viewBox="0 0 24 24" className="h-5 w-5 translate-x-px" fill="currentColor">
+        <Link
+            to={to}
+            aria-label="Play"
+            className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 hover:bg-[#4f516a]"
+        >
+            <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
+                isActive ? 'bg-[#F5EEDC] text-[#525470]' : 'text-[#F5EEDC]/80 hover:text-[#F5EEDC]'
+            }`}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4 translate-x-px" fill="currentColor">
                     <polygon points="5,3 19,12 5,21" />
                 </svg>
-            </Link>
-        </li>
+            </span>
+        </Link>
     );
 }
