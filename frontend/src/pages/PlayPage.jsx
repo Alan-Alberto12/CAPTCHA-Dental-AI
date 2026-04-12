@@ -392,7 +392,7 @@ export default function PlayPage() {
                     </div>
 
                     {/* Instructions */}
-                    <div className="mb-4 bg-white/10 rounded-md px-4 py-2">
+                    <div className="hidden md:block mb-4 bg-white/10 rounded-md px-4 py-2">
                         <p className="text-[#F5EEDC] text-sm">
                             Selected: {selectedImages.length}
                         </p>
