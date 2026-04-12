@@ -194,7 +194,7 @@ export default function Dashboard() {
               <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
               <div>
                 <p className="text-[#F5EEDC] font-semibold text-sm">Session in progress</p>
-                <p className="text-[#F5EEDC]/60 text-xs">Click to resume where you left off</p>
+                <p className="text-[#F5EEDC]/60 text-xs">Click to continue where you left off</p>
               </div>
             </div>
             <span className="text-[#F5EEDC]/70 group-hover:text-[#F5EEDC] text-lg transition-colors">→</span>
