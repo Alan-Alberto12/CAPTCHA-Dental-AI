@@ -109,13 +109,6 @@ export default function Header( {
                     {/* Dropdown Menu */}
                     {showDropdown && (
                         <div className="absolute right-0 mt-2 w-44 bg-[#3f4157] rounded-xl shadow-xl border border-white/10 z-50 overflow-hidden">
-                            <button
-                                onClick={handleEditUser}
-                                className="w-full text-left px-4 py-2.5 text-[#F5EEDC] text-sm hover:bg-white/10 transition-colors"
-                            >
-                                Edit Account
-                            </button>
-
                             {user.isAdmin && (
                                 <button
                                     onClick={handleAdminPanel}
@@ -124,6 +117,13 @@ export default function Header( {
                                     Admin Portal
                                 </button>
                             )}
+                            
+                            <button
+                                onClick={handleEditUser}
+                                className="w-full text-left px-4 py-2.5 text-[#F5EEDC] text-sm hover:bg-white/10 transition-colors"
+                            >
+                                Edit Account
+                            </button>
 
                             <div className="border-t border-white/10" />
                             <button
