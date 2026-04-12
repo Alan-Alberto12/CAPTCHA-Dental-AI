@@ -71,14 +71,15 @@ export default function Header( {
         <header className="sticky top-0 z-50 bg-[#525470]/95 backdrop-blur-md border-b border-white/10 shadow-sm">
             <div className="grid h-14 w-full grid-cols-2 md:grid-cols-3 items-center px-4 md:px-6 lg:px-10">
 
-                {/* left: title */}
+                {/* left: logo + title */}
                 <div className="justify-self-start">
                     <Link
                         to="/dashboard"
                         aria-label="Go to dashboard"
-                        className="text-base font-bold tracking-wide text-[#F5EEDC] hover:text-white transition-colors"
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                     >
-                        {title}
+                        <img src="/logo.png" alt="DenTag logo" className="h-7 w-7 object-contain" />
+                        <span className="text-base font-bold tracking-wide text-[#F5EEDC]">{title}</span>
                     </Link>
                 </div>
 
