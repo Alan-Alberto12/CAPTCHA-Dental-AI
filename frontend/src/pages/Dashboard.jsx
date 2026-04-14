@@ -303,7 +303,7 @@ export default function Dashboard() {
                     </h3>
                     {session.points_earned > 0 && (
                       <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md font-bold text-xs shrink-0 whitespace-nowrap ml-2">
-                        +{session.points_earned}
+                        +{session.points_earned} pts
                       </span>
                     )}
                   </div>
