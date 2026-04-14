@@ -230,30 +230,33 @@ export default function Dashboard() {
         )}
 
         {/* Stat cards + searchbar */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="bg-[#525470] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
-            <h3 className="text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Sessions Completed</h3>
-            <p className="text-4xl font-bold text-[#F5EEDC]">{completedSessions.length}</p>
+        <div className="flex flex-col md:flex-row gap-3 mb-8">
+          {/* Stats row — always one row */}
+          <div className="flex gap-3">
+            <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[100px]">
+              <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Sessions Completed</h3>
+              <p className="text-2xl md:text-4xl font-bold text-[#F5EEDC]">{completedSessions.length}</p>
+            </div>
+
+            <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[100px]">
+              <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Daily Streak</h3>
+              <p className="text-2xl md:text-4xl font-bold text-orange-400">
+                {userStats ? userStats.daily_streak : '—'}
+                <span className="text-xl md:text-4xl ml-0.5">🔥</span>
+              </p>
+            </div>
+
+            <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[110px]">
+              <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Lifetime Points</h3>
+              <p className="text-2xl md:text-4xl font-bold text-yellow-400">
+                {userStats ? userStats.total_points.toLocaleString() : '—'}
+              </p>
+            </div>
           </div>
 
-          <div className="bg-[#525470] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
-            <h3 className="text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Daily Streak</h3>
-            <p className="text-4xl font-bold text-orange-400">
-              {userStats ? userStats.daily_streak : '—'}
-              <span className="text-4xl ml-0.5">🔥</span>
-            </p>
-          </div>
-
-          <div className="bg-[#525470] rounded-3xl p-4 text-center shadow-md min-w-[110px]">
-            <h3 className="text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Lifetime Points</h3>
-            <p className="text-4xl font-bold text-yellow-400">
-              {userStats ? userStats.total_points.toLocaleString() : '—'}
-            </p>
-          </div>
-
-          {/* Searchbar */}
+          {/* Searchbar — full width on mobile, flex-1 on desktop */}
           <div className="flex-1 bg-[#525470] rounded-2xl px-3 py-3 shadow-md">
-            <div className="bg-[#3a3c56] rounded-xl px-4 py-5 flex items-center gap-2">
+            <div className="bg-[#3a3c56] rounded-xl px-4 py-2 md:py-5 flex items-center gap-2">
               <svg className="w-4 h-4 text-[#F5EEDC]/40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="8" strokeWidth="2"/><path d="M21 21l-4.35-4.35" strokeWidth="2" strokeLinecap="round"/>
               </svg>
@@ -286,12 +289,12 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
             {filteredCases.map((session) => (
               <div
                 key={session.session_id}
                 onClick={() => sessionOverviewDisplay(session.session_id)}
-                className="bg-[#525470] rounded-2xl shadow-md overflow-hidden hover:bg-[#3f4157] hover:-translate-y-1 hover:shadow-xl hover:border-l-4 hover:border-emerald-400 transition-all duration-200 cursor-pointer"
+                className="bg-[#525470] rounded-2xl shadow-md overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all duration-200 cursor-pointer"
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
