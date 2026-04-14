@@ -216,7 +216,7 @@ export default function Dashboard() {
         {hasInProgressSession && (
           <Link
             to="/play"
-            className="group flex items-center justify-between mb-6 px-5 py-4 rounded-2xl bg-[#525470] hover:bg-[#3f4157] transition-colors shadow-md cursor-pointer"
+            className="group flex items-center justify-between mb-6 px-5 py-4 rounded-2xl bg-[#525470] hover:bg-[#3f4157] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200 shadow-md cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
@@ -280,7 +280,7 @@ export default function Dashboard() {
               <div 
                 key={session.session_id} 
                 onClick={() => sessionOverviewDisplay(session.session_id)}
-                className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-hidden hover:bg-[#DED3C4] transition-colors cursor-pointer"
+                className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-hidden hover:bg-[#DED3C4] hover:-translate-y-1 hover:shadow-xl transition-all duration-200 cursor-pointer"
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
