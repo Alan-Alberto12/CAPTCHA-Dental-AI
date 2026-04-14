@@ -326,6 +326,12 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
     token_hash = hashlib.sha256(payload.token.encode()).hexdigest()
     token_row = db.query(EmailConfirmationToken).filter(EmailConfirmationToken.token_hash == token_hash).first()
 
+    # If token was already used and user is verified, treat as success (handles Microsoft scanner pre-fetching the link)
+    if token_row and token_row.used:
+        user = db.query(User).filter(User.id == token_row.user_id).first()
+        if user and user.is_verified:
+            return {"message": "Email successfully confirmed!"}
+
     if not token_row or token_row.expires < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid/expired token")
 
@@ -335,7 +341,8 @@ def confirm_email(payload: EmailConfirmRequest, db: Session = Depends(get_db)):
 
     user.is_verified = True
     db.add(user)
-    db.delete(token_row)
+    token_row.used = True
+    db.add(token_row)
     db.commit()
 
     return {"message": "Email successfully confirmed!"}

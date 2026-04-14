@@ -67,34 +67,33 @@ export default function Header( {
     }
 
     return (
-        <header className="sticky top-0 z-50 border-b bg-[#525470] border-[#98A1B6]">
-            <div className="grid h-12 w-full grid-cols-2 md:grid-cols-3 items-center px-3 md:px-4 lg:px-8">
+        <header className="sticky top-0 z-50 bg-[#525470]/95 backdrop-blur-md border-b border-white/10 shadow-sm">
+            <div className="grid h-14 w-full grid-cols-2 md:grid-cols-3 items-center px-4 md:px-6 lg:px-10">
 
-                {/* left: title + logo? */}
+                {/* left: logo + title */}
                 <div className="justify-self-start">
                     <Link
                         to="/dashboard"
                         aria-label="Go to dashboard"
-                        className="text-sm font-semibold tracking-tight text-[#DED3C4]"
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                     >
-                        {title}
+                        <img src="/logo.png" alt="DenTag logo" className="h-7 w-7 object-contain" />
+                        <span className="text-base font-bold tracking-wide text-[#F5EEDC]">{title}</span>
                     </Link>
                 </div>
 
                 {/* center: navigation */}
-                <nav aria-label="Primary" className="justify-self-center hidden md:block">
-                    <ul className="flex items-center gap-1 text-sm">
-                        <NavItem label="Dashboard" to="/dashboard" />
-                        <NavItem label="Play" to="/play" />
-                        <NavItem label="Leaderboard" to="/leaderboard" />
-                    </ul>
+                <nav aria-label="Primary" className="justify-self-center hidden md:flex items-center">
+                    <NavPill label="Dashboard" to="/dashboard" side="left" />
+                    <PlayButton to="/play" />
+                    <NavPill label="Leaderboard" to="/leaderboard" side="right" />
                 </nav>
 
                 {/* right: profile */}
                 <div className="justify-self-end relative">
                     <button
                         onClick={() => setShowDropdown(!showDropdown)}
-                        className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-transparent bg-[#DED3C4] text-xs font-semibold text-[#525470] hover:bg-[#F4EBD3] transition-colors cursor-pointer"
+                        className="inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#DED3C4] text-xs font-bold text-[#525470] ring-2 ring-transparent hover:ring-[#F5EEDC]/50 hover:bg-[#F4EBD3] transition-all cursor-pointer"
                         title={user?.name || "Profile"}
                         aria-label="Profile"
                     >
@@ -107,31 +106,31 @@ export default function Header( {
 
                     {/* Dropdown Menu */}
                     {showDropdown && (
-                        <div className="absolute right-0 mt-2 w-40 bg-[#F4EBD3] rounded-lg shadow-lg border border-[#98A1B6] z-50">
-                            <button
-                                onClick={handleEditUser}
-                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
-                            >
-                                Edit Account
-                            </button>
-                            
+                        <div className="absolute right-0 mt-2 w-44 bg-[#3f4157] rounded-xl shadow-xl border border-white/10 z-50 overflow-hidden">
                             {user.isAdmin && (
                                 <button
                                     onClick={handleAdminPanel}
-                                    className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
+                                    className="w-full text-left px-4 py-2.5 text-[#F5EEDC] text-sm hover:bg-white/10 transition-colors"
                                 >
                                     Admin Portal
                                 </button>
                             )}
+                            
+                            <button
+                                onClick={handleEditUser}
+                                className="w-full text-left px-4 py-2.5 text-[#F5EEDC] text-sm hover:bg-white/10 transition-colors"
+                            >
+                                Edit Account
+                            </button>
 
+                            <div className="border-t border-white/10" />
                             <button
                                 onClick={handleSignOut}
-                                className="w-full text-left px-4 py-2 text-[#525470] hover:bg-[#DED3C4] rounded-lg transition-colors font-semibold"
+                                className="w-full text-left px-4 py-2.5 text-red-400 text-sm hover:bg-white/10 transition-colors"
                             >
                                 Sign Out
                             </button>
                         </div>
-                        
                     )}
                 </div>
             </div>
@@ -139,20 +138,48 @@ export default function Header( {
     );
 }
 
-function NavItem({ label, to }) {
+function NavPill({ label, to, side }) {
+    const location = useLocation();
+    const isActive = location.pathname === to;
+    const isLeft = side === 'left';
+
+    return (
+        <Link
+            to={to}
+            className={`relative flex h-8 w-36 items-center rounded-full bg-black/20 p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 ${
+                isLeft ? '-mr-5 z-0' : '-ml-5 z-0'
+            }`}
+        >
+            <span className={`flex h-full w-full items-center text-sm font-medium transition-all ${
+                isLeft ? 'rounded-l-full rounded-r-none justify-center pl-2 pr-6' : 'rounded-r-full rounded-l-none justify-center pr-2 pl-6'
+            } ${
+                isActive
+                    ? 'bg-[#F5EEDC] text-[#525470]'
+                    : 'text-[#F5EEDC]/70 hover:text-[#F5EEDC]'
+            }`}>
+                {label}
+            </span>
+        </Link>
+    );
+}
+
+function PlayButton({ to }) {
     const location = useLocation();
     const isActive = location.pathname === to;
 
     return (
-        <li>
-            <Link
-                to={to}
-                className={`rounded-full hover:cursor-pointer px-3 py-1.5 text-[#F4EBD3] hover:bg-[#98A1B6]/20 focus:outline-none focus-visible:ring focus-visible:ring-[#98A1B6] ${
-                    isActive ? 'bg-[#98A1B6]/30' : ''
-                }`}
-            >
-                {label}
-            </Link>
-        </li>
+        <Link
+            to={to}
+            aria-label="Play"
+            className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 hover:bg-[#4f516a]"
+        >
+            <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
+                isActive ? 'bg-emerald-500 text-white' : 'text-[#F5EEDC]/80 hover:text-[#F5EEDC]'
+            }`}>
+                <svg viewBox="0 0 24 24" className="h-5 w-5 translate-x-px" fill="currentColor">
+                    <polygon points="5,3 19,12 5,21" />
+                </svg>
+            </span>
+        </Link>
     );
 }

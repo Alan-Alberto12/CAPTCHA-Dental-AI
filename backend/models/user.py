@@ -39,6 +39,7 @@ class EmailConfirmationToken(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token_hash = Column(String(64), nullable=False, unique=True, index=True)
     expires = Column(DateTime(timezone=True), nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
 
 #additional models for images, questions, sessions and annotations
 class Image(Base):
