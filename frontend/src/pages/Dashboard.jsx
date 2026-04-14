@@ -8,6 +8,7 @@ export default function Dashboard() {
 
   const [completedSessions, setCompletedSessions] = useState([]);
   const [hasInProgressSession, setHasInProgressSession] = useState(false);
+  const [userStats, setUserStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
@@ -27,14 +28,16 @@ export default function Dashboard() {
     }
 
     try {
-      //fetch both completed_sessions and current_session endpoints
-      const [completedCase, currentCase] = await Promise.all([
+      const [completedCase, currentCase, statsCase] = await Promise.all([
         fetch(`${API_URL}/auth/sessions/completed`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${API_URL}/auth/sessions/current`, {
           headers: { 'Authorization': `Bearer ${token}` }
-        })
+        }),
+        fetch(`${API_URL}/leaderboard/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
       ]);
 
       if(completedCase.ok) {
@@ -47,10 +50,14 @@ export default function Dashboard() {
           }
         });
       }
-      
+
       if(currentCase.ok) {
         const currentData = await currentCase.json();
         setHasInProgressSession(currentData !== null);
+      }
+
+      if(statsCase.ok) {
+        setUserStats(await statsCase.json());
       }
     } catch (error) {
       console.error('Error fetching dashboard cases:', error);
@@ -214,7 +221,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-3">
               <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
               <div>
-                <p className="text-[#F5EEDC] font-semibold text-sm">Session in progress</p>
+                <p className="text-[#F5EEDC] font-semibold text-lg">Session in progress</p>
                 <p className="text-[#F5EEDC]/60 text-xs">Click to continue where you left off</p>
               </div>
             </div>
@@ -222,24 +229,37 @@ export default function Dashboard() {
           </Link>
         )}
 
-        {/*stat card and searchbar */}
-        <div className="flex items-center gap-6 mb-8">
-          {/*Completed card*/}
-          <div className="bg-[#F4EBD3] rounded-3xl p-6 text-center shadow-md min-w-[150px]">
-            <h3 className="text-lg font-bold mb-2">Completed</h3>
-            {/*gives the number of completed sessions registered in the db*/}
-            <p className="text-5xl font-bold">{completedSessions.length}</p> 
+        {/* Stat cards + searchbar */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="bg-[#F4EBD3] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sessions Completed</h3>
+            <p className="text-4xl font-bold text-[#525470]">{completedSessions.length}</p>
           </div>
 
-          {/*Searchbar */}
-          <div className="flex-1 bg-[#F4EBD3] rounded-2xl px-6 py-2 shadow-md">
-            <div className="flex-1 bg-white rounded-2xl px-6 py-2">
+          <div className="bg-[#F4EBD3] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Daily Streak</h3>
+            <p className="text-4xl font-bold text-orange-400">
+              {userStats ? userStats.daily_streak : '—'}
+              <span className="text-4xl ml-0.5">🔥</span>
+            </p>
+          </div>
+
+          <div className="bg-[#F4EBD3] rounded-3xl p-4 text-center shadow-md min-w-[110px]">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Lifetime Points</h3>
+            <p className="text-4xl font-bold text-yellow-500">
+              {userStats ? userStats.total_points.toLocaleString() : '—'}
+            </p>
+          </div>
+
+          {/* Searchbar */}
+          <div className="flex-1 bg-[#F4EBD3] rounded-2xl px-2 py-4 shadow-md">
+            <div className="bg-white rounded-2xl px-4 py-4">
               <input
                 type="text"
-                placeholder="Search cases..."
+                placeholder="Search sessions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent text-lg focus:outline-none placeholder-gray-600"
+                className="w-full bg-transparent text-base focus:outline-none placeholder-gray-500"
               />
             </div>
           </div>
