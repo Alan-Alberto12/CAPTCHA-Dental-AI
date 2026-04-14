@@ -235,20 +235,20 @@ export default function Dashboard() {
           <div className="flex gap-3">
             <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[100px]">
               <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Sessions Completed</h3>
-              <p className="text-2xl md:text-4xl font-bold text-[#F5EEDC]">{completedSessions.length}</p>
+              <p className="text-3xl md:text-4xl font-bold text-[#F5EEDC]">{completedSessions.length}</p>
             </div>
 
             <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[100px]">
               <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Daily Streak</h3>
-              <p className="text-2xl md:text-4xl font-bold text-orange-400">
+              <p className="text-3xl md:text-4xl font-bold text-orange-400">
                 {userStats ? userStats.daily_streak : '—'}
-                <span className="text-xl md:text-4xl ml-0.5">🔥</span>
+                <span className="text-3xl md:text-4xl ml-0.5">🔥</span>
               </p>
             </div>
 
             <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[110px]">
               <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Lifetime Points</h3>
-              <p className="text-2xl md:text-4xl font-bold text-yellow-400">
+              <p className="text-3xl md:text-4xl font-bold text-yellow-400">
                 {userStats ? userStats.total_points.toLocaleString() : '—'}
               </p>
             </div>
