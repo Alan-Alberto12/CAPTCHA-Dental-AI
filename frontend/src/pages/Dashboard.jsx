@@ -287,9 +287,11 @@ export default function Dashboard() {
                     <h3 className="font-bold text-lg truncate" title={session.title || `Session ${session.session_id}`}>
                       {session.title || `Session ${session.session_number}`}
                     </h3>
-                    <span className="bg-green-400 px-3 py-1 rounded-md font-bold text-sm flex-shrink-0">
-                      C
-                    </span>
+                    {session.points_earned > 0 && (
+                      <span className="bg-green-400 text-green-900 px-2 py-1 rounded-md font-bold text-xs shrink-0 whitespace-nowrap">
+                        +{session.points_earned} pts
+                      </span>
+                    )}
                   </div>
 
                   {/* Thumbnail Image */}

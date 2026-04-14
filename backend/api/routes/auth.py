@@ -28,6 +28,7 @@ from models.user import (
     Question,
     UserStats,
     Prediction,
+    PointTransaction,
 )
 from schemas.user import (
     UserCreate,
@@ -510,6 +511,10 @@ def get_completed_sessions(
             if image:
                 thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=10)
 
+        points_earned = db.query(func.sum(PointTransaction.points)).filter(
+            PointTransaction.session_id == session.id
+        ).scalar() or 0
+
         result.append({
             "session_id": session.id,
             "title": session.title,
@@ -518,6 +523,7 @@ def get_completed_sessions(
             "question_count": question_count,
             "thumbnail_url": thumbnail_url,
             "session_number": session_number,
+            "points_earned": points_earned,
         })
 
     return result
