@@ -96,6 +96,14 @@ export default function PlayPage() {
 
                 setSessionFromAPI(data);
 
+                // Prefetch all images across all questions so they're browser-cached
+                data.questions.forEach(question => {
+                    question.images.forEach(image => {
+                        const img = new window.Image();
+                        img.src = image.image_url;
+                    });
+                });
+
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
                 setAnsweredQuestions(answeredSet);

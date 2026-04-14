@@ -440,7 +440,7 @@ def get_current_session(db: Session = Depends(get_db), current_user: User = Depe
                     images.append ({
                         "id": image.id,
                         "filename": image.filename,
-                        "image_url": s3_service.generate_presigned_url(image.image_url, expiration=1200) or image.image_url,
+                        "image_url": s3_service.generate_presigned_url(image.image_url, expiration=10) or image.image_url,
                         "order": si.image_order,
                     })
             questions.append({
@@ -653,7 +653,7 @@ def get_next_session(
                     {
                         "id": img.id,
                         "filename": img.filename,
-                        "image_url": s3_service.generate_presigned_url(img.image_url, expiration=1200) or img.image_url,
+                        "image_url": s3_service.generate_presigned_url(img.image_url, expiration=10) or img.image_url,
                         "order": img_order,
                     }
                     for img_order, img in enumerate(images_per_q_map[q.id], start=1)
