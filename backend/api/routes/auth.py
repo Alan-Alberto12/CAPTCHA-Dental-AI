@@ -501,7 +501,7 @@ def get_completed_sessions(
         if session_first_image:
             image = db.query(Image).filter(Image.id == session_first_image.image_id).first()
             if image:
-                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=10)
 
         result.append({
             "session_id": session.id,
@@ -543,7 +543,7 @@ def get_session_overview (
     for si in completed_session_images:
         image = db.query(Image).filter(Image.id == si.image_id).first()
         if image:
-            image_presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+            image_presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=10)
             images.append({
                 "id": image.id,
                 "filename": image.filename,
@@ -622,10 +622,17 @@ def get_next_session(
     db.add(session)
     db.flush()
 
+    # Select all images needed for the session at once to avoid duplicates across questions
+    total_images_needed = num_questions * num_images_per_question
+    all_session_images = db.query(Image).order_by(func.random()).limit(total_images_needed).all()
+    if len(all_session_images) < total_images_needed:
+        raise HTTPException(status_code=404, detail=f"Not enough images available (need {total_images_needed}, found {len(all_session_images)})")
+
     images_per_q_map = {}
     for order, question in enumerate(questions, start=1):
         db.add(SessionQuestion(session_id=session.id, question_id=question.id, question_order=order))
-        images_per_q = db.query(Image).order_by(func.random()).limit(num_images_per_question).all()
+        start = (order - 1) * num_images_per_question
+        images_per_q = all_session_images[start:start + num_images_per_question]
         images_per_q_map[question.id] = images_per_q
         for image_order, image in enumerate(images_per_q, start=1):
             db.add(SessionImage(session_id=session.id, image_id=image.id, question_id=question.id, image_order=image_order))
