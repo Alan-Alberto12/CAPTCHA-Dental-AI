@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { API_URL } from '../config';
 
@@ -40,6 +40,12 @@ export default function Dashboard() {
       if(completedCase.ok) {
         const completedData = await completedCase.json();
         setCompletedSessions(completedData);
+        completedData.forEach(session => {
+          if (session.thumbnail_url) {
+            const img = new window.Image();
+            img.src = session.thumbnail_url;
+          }
+        });
       }
       
       if(currentCase.ok) {
@@ -59,8 +65,15 @@ export default function Dashboard() {
       headers: {'Authorization': `Bearer ${token}` }
     })
     if(response.ok) {
-      setQuestionOverviewCount(0)
-      setSelectedSession(await response.json())
+      const data = await response.json();
+      data.questions.forEach(question => {
+        question.images.forEach(image => {
+          const img = new window.Image();
+          img.src = image.image_url;
+        });
+      });
+      setQuestionOverviewCount(0);
+      setSelectedSession(data);
     }
   }
   
@@ -117,7 +130,7 @@ export default function Dashboard() {
 
           {/* Image grid (2x2)*/}
           <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
-            {selectedSession.images.map((image) => {
+            {currentQuestion.images.map((image) => {
               const isSelected = selectedImages.includes(image.id)
               return (
                 <div

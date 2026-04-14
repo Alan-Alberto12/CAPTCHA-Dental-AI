@@ -96,6 +96,14 @@ export default function PlayPage() {
 
                 setSessionFromAPI(data);
 
+                // Prefetch all images across all questions so they're browser-cached
+                data.questions.forEach(question => {
+                    question.images.forEach(image => {
+                        const img = new window.Image();
+                        img.src = image.image_url;
+                    });
+                });
+
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
                 setAnsweredQuestions(answeredSet);
@@ -189,11 +197,6 @@ export default function PlayPage() {
                 } else {
                     //Go to next question if there's still any left
                     handleNextQuestion();
-                    // setMessage("Answer submitted!");
-                    // // Auto-advance to next unanswered question after 1 second
-                    // setTimeout(() => {
-                    //     handleNextQuestion();
-                    // }, 1000);
                 }
                 // Clear selected images
                 setSelectedImages([]);
@@ -397,7 +400,7 @@ export default function PlayPage() {
 
                     {/* Image Grid (2x2) */}
                     <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
-                        {session.images.map((image) => {
+                        {currentQuestion.images.map((image) => {
                             const isSelected = selectedImages.includes(image.id);
                             return (
                                 <div
@@ -434,12 +437,6 @@ export default function PlayPage() {
                 )}
 
                 {/* Messages */}
-                {isRefreshing && (
-                    <div className="mb-4 rounded-lg bg-blue-500/20 border border-blue-500 px-4 py-3">
-                        <p className="text-[#F5EEDC] font-medium">Refreshing images...</p>
-                    </div>
-                )}
-
                 {refreshError && (
                     <div className="mb-4 rounded-lg bg-red-500/20 border border-red-500 px-4 py-3">
                         <p className="text-[#F5EEDC] font-medium">{refreshError}</p>
