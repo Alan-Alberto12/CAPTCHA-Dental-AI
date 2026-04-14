@@ -231,71 +231,82 @@ export default function Dashboard() {
 
         {/* Stat cards + searchbar */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="bg-[#F4EBD3] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sessions Completed</h3>
-            <p className="text-4xl font-bold text-[#525470]">{completedSessions.length}</p>
+          <div className="bg-[#525470] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
+            <h3 className="text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Sessions Completed</h3>
+            <p className="text-4xl font-bold text-[#F5EEDC]">{completedSessions.length}</p>
           </div>
 
-          <div className="bg-[#F4EBD3] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Daily Streak</h3>
+          <div className="bg-[#525470] rounded-3xl p-4 text-center shadow-md min-w-[100px]">
+            <h3 className="text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Daily Streak</h3>
             <p className="text-4xl font-bold text-orange-400">
               {userStats ? userStats.daily_streak : '—'}
               <span className="text-4xl ml-0.5">🔥</span>
             </p>
           </div>
 
-          <div className="bg-[#F4EBD3] rounded-3xl p-4 text-center shadow-md min-w-[110px]">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Lifetime Points</h3>
-            <p className="text-4xl font-bold text-yellow-500">
+          <div className="bg-[#525470] rounded-3xl p-4 text-center shadow-md min-w-[110px]">
+            <h3 className="text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">Lifetime Points</h3>
+            <p className="text-4xl font-bold text-yellow-400">
               {userStats ? userStats.total_points.toLocaleString() : '—'}
             </p>
           </div>
 
           {/* Searchbar */}
-          <div className="flex-1 bg-[#F4EBD3] rounded-2xl px-2 py-4 shadow-md">
-            <div className="bg-white rounded-2xl px-4 py-4">
+          <div className="flex-1 bg-[#525470] rounded-2xl px-3 py-3 shadow-md">
+            <div className="bg-[#3a3c56] rounded-xl px-4 py-5 flex items-center gap-2">
+              <svg className="w-4 h-4 text-[#F5EEDC]/40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" strokeWidth="2"/><path d="M21 21l-4.35-4.35" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
               <input
                 type="text"
                 placeholder="Search sessions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent text-base focus:outline-none placeholder-gray-500"
+                className="w-full bg-transparent text-base text-[#F5EEDC] focus:outline-none placeholder-[#F5EEDC]/40"
               />
             </div>
           </div>
         </div>
 
-        {/*Sessions Grid OR Empty State */}
+        {/* Sessions Grid OR Empty State */}
         {filteredCases.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-white text-xl font-semibold">
-              {completedSessions.length === 0 
-                ? 'No sessions completed' 
-                : 'No sessions match your search'}
-            </p>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="bg-[#525470] rounded-3xl px-8 py-10 shadow-md max-w-sm">
+              <svg className="w-12 h-12 text-[#F5EEDC]/30 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1.5"/>
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+                <path d="M21 15l-5-5L5 21" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <p className="text-[#F5EEDC] font-semibold text-lg">
+                {completedSessions.length === 0 ? 'No sessions yet' : 'No results found'}
+              </p>
+              <p className="text-[#F5EEDC]/50 text-sm mt-1">
+                {completedSessions.length === 0 ? 'Complete a session to see it here' : 'Try a different search term'}
+              </p>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredCases.map((session) => (
-              <div 
-                key={session.session_id} 
+              <div
+                key={session.session_id}
                 onClick={() => sessionOverviewDisplay(session.session_id)}
-                className="bg-[#F4EBD3] rounded-2xl shadow-md overflow-hidden hover:bg-[#DED3C4] hover:-translate-y-1 hover:shadow-xl transition-all duration-200 cursor-pointer"
+                className="bg-[#525470] rounded-2xl shadow-md overflow-hidden hover:bg-[#3f4157] hover:-translate-y-1 hover:shadow-xl hover:border-l-4 hover:border-emerald-400 transition-all duration-200 cursor-pointer"
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-bold text-lg truncate" title={session.title || `Session ${session.session_id}`}>
+                    <h3 className="font-bold text-base text-[#F5EEDC] truncate" title={session.title || `Session ${session.session_id}`}>
                       {session.title || `Session ${session.session_number}`}
                     </h3>
                     {session.points_earned > 0 && (
-                      <span className="bg-green-400 text-green-900 px-2 py-1 rounded-md font-bold text-xs shrink-0 whitespace-nowrap">
-                        +{session.points_earned} pts
+                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md font-bold text-xs shrink-0 whitespace-nowrap ml-2">
+                        +{session.points_earned}
                       </span>
                     )}
                   </div>
 
                   {/* Thumbnail Image */}
-                  <div className="bg-white rounded-xl h-40 flex items-center justify-center overflow-hidden">
+                  <div className="bg-[#3a3c56] rounded-xl h-40 flex items-center justify-center overflow-hidden">
                     {session.thumbnail_url ? (
                       <img
                         src={session.thumbnail_url}
@@ -303,23 +314,18 @@ export default function Dashboard() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <svg
-                        className="w-16 h-16 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" strokeWidth="2"/>
+                      <svg className="w-12 h-12 text-[#F5EEDC]/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" strokeWidth="1.5"/>
                         <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-                        <path d="M21 15l-5-5L5 21" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M21 15l-5-5L5 21" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
                   </div>
 
                   {/* Session Info */}
-                  <div className="mt-3 text-sm text-gray-600">
-                    <p>{session.question_count} questions</p>
-                    <p>{new Date(session.completed_at).toLocaleDateString()}</p>
+                  <div className="mt-3 flex items-center justify-between text-xs text-[#F5EEDC]/50">
+                    <span>{session.question_count} questions</span>
+                    <span>{new Date(session.completed_at).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
