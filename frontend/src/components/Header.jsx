@@ -67,7 +67,7 @@ export default function Header( {
     }
 
     return (
-        <header className="sticky top-0 z-50 bg-[#525470]/95 backdrop-blur-md border-b border-white/10 shadow-sm">
+        <header className="sticky top-0 z-50 bg-[#525470]/95 backdrop-blur-md border-b border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
             <div className="grid h-14 w-full grid-cols-2 md:grid-cols-3 items-center px-4 md:px-6 lg:px-10">
 
                 {/* left: logo + title */}

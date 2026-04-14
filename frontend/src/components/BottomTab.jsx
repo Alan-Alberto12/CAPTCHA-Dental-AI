@@ -19,7 +19,7 @@ export default function BottomTabs({ active, onChange }) {
     return (
         <nav
             aria-label="Bottom navigation"
-            className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#525470]/95 backdrop-blur-md border-t border-white/10"
+            className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#525470]/95 backdrop-blur-md border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.35)]"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
             <div className="flex items-center justify-center h-16">
