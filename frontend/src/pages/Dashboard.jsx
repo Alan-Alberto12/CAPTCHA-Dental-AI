@@ -192,13 +192,20 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         
-        {/* In-Progress Warning Banner */}
+        {/* In-Progress Session Banner */}
         {hasInProgressSession && (
-          <Link 
-            to="/play" 
-            className="block mb-6 text-center text-red-600 font-bold text-lg hover:text-red-700 hover:underline cursor-pointer"
+          <Link
+            to="/play"
+            className="group flex items-center justify-between mb-6 px-5 py-4 rounded-2xl bg-[#525470] hover:bg-[#3f4157] transition-colors shadow-md cursor-pointer"
           >
-            You currently have 1 session In Progress. To complete it, please redirect to the Play tab.
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <div>
+                <p className="text-[#F5EEDC] font-semibold text-sm">Session in progress</p>
+                <p className="text-[#F5EEDC]/60 text-xs">Click to continue where you left off</p>
+              </div>
+            </div>
+            <span className="text-[#F5EEDC]/70 group-hover:text-[#F5EEDC] text-lg transition-colors">→</span>
           </Link>
         )}
 

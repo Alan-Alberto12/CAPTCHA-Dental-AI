@@ -5,71 +5,88 @@ export default function BottomTabs({ active, onChange }) {
     const navigate = useNavigate();
     const { pathname } = useLocation();
 
-    const items = [
-        { key: "dashboard", label: "Home", icon: HomeIcon, path: "/dashboard" },
-        { key: "play", label: "Play", icon: PlayIcon, path: "/play" },
-        { key: "leaderboard", label: "Leaderboard", icon: TrophyIcon, path: "/leaderboard" },
-    ];
+    const inferredActive = active || (
+        pathname.startsWith("/play") ? "play" :
+        pathname.startsWith("/leaderboard") ? "leaderboard" :
+        "dashboard"
+    );
 
-    const inferredActive = active || (items.find(i => pathname.startsWith(i.path))?.key ?? "dashboard");
     const handleChange = onChange || ((key) => {
-        const item = items.find(i => i.key === key);
-        if (item) navigate(item.path);
+        const paths = { dashboard: "/dashboard", play: "/play", leaderboard: "/leaderboard" };
+        if (paths[key]) navigate(paths[key]);
     });
 
     return (
         <nav
             aria-label="Bottom navigation"
-            className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#525470] text-[#F5EEDC]"
+            className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#525470]/95 backdrop-blur-md border-t border-white/10"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
-            <ul className="mx-auto flex h-14 max-w-3xl items-stretch justify-around px-2">
-                {items.map(({ key, label, icon: Icon }) => {
-                    const isActive = key === inferredActive;
-                    return (
-                        <li key={key} className="flex-1">
-                            <button
-                                type="button"
-                                onClick={() => handleChange(key)}
-                                className="group flex h-full w-full flex-col items-center justify-center gap-0.5 outline-none hover:cursor-pointer"
-                            >
-                                <span
-                                    className={[
-                                        "inline-flex items-center justify-center rounded-full px-3 py-1 text-md font-medium transition",
-                                        isActive ? "bg-[#D9CEC1] text-[#525470]" : "text-[#F5EEDC]/90 group-hover:text-[#F5EEDC]",
-                                    ].join(" ")}
-                                >
-                                    <Icon className="mr-1 h-4 w-4" /> {label}
-                                </span>
-                            </button>
-                        </li>
-                    );
-                })}
-            </ul>
+            <div className="flex items-center justify-center h-16">
+                <div className="flex items-center">
+                    <BottomNavPill
+                        label="Dashboard"
+                        isActive={inferredActive === "dashboard"}
+                        side="left"
+                        onClick={() => handleChange("dashboard")}
+                    />
+                    <BottomPlayButton
+                        isActive={inferredActive === "play"}
+                        onClick={() => handleChange("play")}
+                    />
+                    <BottomNavPill
+                        label="Leaderboard"
+                        isActive={inferredActive === "leaderboard"}
+                        side="right"
+                        onClick={() => handleChange("leaderboard")}
+                    />
+                </div>
+            </div>
         </nav>
     );
 }
 
-function HomeIcon({ className = "h-4 w-4" }) {
+function BottomNavPill({ label, isActive, side, onClick }) {
+    const isLeft = side === "left";
+
     return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-            <path d="M11.47 3.84a.75.75 0 0 1 1.06 0l7 7a.75.75 0 1 1-1.06 1.06l-.47-.47V19.5a1.5 1.5 0 0 1-1.5 1.5h-3a.75.75 0 0 1-.75-.75V16.5a1.5 1.5 0 0 0-1.5-1.5h-2a1.5 1.5 0 0 0-1.5 1.5v3.75a.75.75 0 0 1-.75.75h-3A1.5 1.5 0 0 1 6 19.5v-8.07l-.47.47a.75.75 0 0 1-1.06-1.06l7-7Z" />
-        </svg>
+        <button
+            type="button"
+            onClick={onClick}
+            className={`relative flex h-9 w-36 items-center rounded-full bg-black/20 p-1 transition-all outline-none cursor-pointer ${
+                isLeft ? "-mr-6 z-0" : "-ml-6 z-0"
+            }`}
+        >
+            <span className={`flex h-full w-full items-center text-sm font-medium transition-all ${
+                isLeft
+                    ? "rounded-l-full rounded-r-none justify-center pl-2 pr-7"
+                    : "rounded-r-full rounded-l-none justify-center pr-2 pl-7"
+            } ${
+                isActive
+                    ? "bg-[#F5EEDC] text-[#525470]"
+                    : "text-[#F5EEDC]/70"
+            }`}>
+                {label}
+            </span>
+        </button>
     );
 }
 
-function PlayIcon({ className = "h-4 w-4" }) {
+function BottomPlayButton({ isActive, onClick }) {
     return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-            <path d="M5.25 5.653c0-1.44 1.552-2.332 2.811-1.62l10.04 5.847c1.31.763 1.31 2.68 0 3.442L8.06 19.169c-1.259.713-2.81-.18-2.81-1.62V5.653z" />
-        </svg>
-    );
-}
-
-function TrophyIcon({ className = "h-4 w-4" }) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-            <path d="M4.5 4.5h15v1.5a4.5 4.5 0 0 1-3.75 4.44A6.75 6.75 0 0 1 12.75 15v1.5h3a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1 0-1.5h3V15a6.75 6.75 0 0 1-2.97-4.56A4.5 4.5 0 0 1 4.5 6V4.5Zm1.5 1.5V6a3 3 0 0 0 2.7 2.985 9.07 9.07 0 0 1 6.6 0A3 3 0 0 0 18 6v0-0.0V6H6Z" />
-        </svg>
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label="Play"
+            className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
+        >
+            <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
+                isActive ? "bg-emerald-500 text-white" : "text-[#F5EEDC]/80"
+            }`}>
+                <svg viewBox="0 0 24 24" className="h-6 w-6 translate-x-px" fill="currentColor">
+                    <polygon points="5,3 19,12 5,21" />
+                </svg>
+            </span>
+        </button>
     );
 }
