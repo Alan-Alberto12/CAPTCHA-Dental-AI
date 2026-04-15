@@ -154,7 +154,7 @@ function NavPill({ label, to, side }) {
                 isLeft ? 'rounded-l-full rounded-r-none justify-center pl-2 pr-6' : 'rounded-r-full rounded-l-none justify-center pr-2 pl-6'
             } ${
                 isActive
-                    ? 'bg-[#6b6e95] text-[#ffffff]'
+                    ? 'bg-[#6b6e95] text-[#F4EBD3]'
                     : 'text-[#F5EEDC]/70 hover:text-[#F5EEDC]'
             }`}>
                 {label}

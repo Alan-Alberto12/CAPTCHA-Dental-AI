@@ -63,7 +63,7 @@ function BottomNavPill({ label, isActive, side, onClick }) {
                     : "rounded-r-full rounded-l-none justify-center pr-2 pl-7"
             } ${
                 isActive
-                    ? 'bg-[#6b6e95] text-[#ffffff]'
+                    ? 'bg-[#6b6e95] text-[#F4EBD3]'
                     : "text-[#F5EEDC]/70"
             }`}>
                 {label}
