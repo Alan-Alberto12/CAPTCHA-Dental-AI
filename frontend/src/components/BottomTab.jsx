@@ -53,7 +53,7 @@ function BottomNavPill({ label, isActive, side, onClick }) {
         <button
             type="button"
             onClick={onClick}
-            className={`relative flex h-9 w-36 items-center rounded-full bg-black/20 p-1 transition-all outline-none cursor-pointer ${
+            className={`relative flex h-9 w-36 items-center rounded-full bg-black/20 p-1 ring-1 ring-white/20 transition-all outline-none cursor-pointer ${
                 isLeft ? "-mr-6 z-0" : "-ml-6 z-0"
             }`}
         >
@@ -78,7 +78,7 @@ function BottomPlayButton({ isActive, onClick }) {
             type="button"
             onClick={onClick}
             aria-label="Play"
-            className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
+            className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 ring-1 ring-white/20 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
         >
             <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
                 isActive ? "bg-emerald-500 text-white" : "text-[#F5EEDC]/80"

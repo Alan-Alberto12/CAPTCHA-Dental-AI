@@ -146,7 +146,7 @@ function NavPill({ label, to, side }) {
     return (
         <Link
             to={to}
-            className={`relative flex h-8 w-36 items-center rounded-full bg-black/20 p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 ${
+            className={`relative flex h-8 w-36 items-center rounded-full bg-black/20 p-1 ring-1 ring-white/20 transition-all focus:outline-none ${
                 isLeft ? '-mr-5 z-0' : '-ml-5 z-0'
             }`}
         >
@@ -154,7 +154,7 @@ function NavPill({ label, to, side }) {
                 isLeft ? 'rounded-l-full rounded-r-none justify-center pl-2 pr-6' : 'rounded-r-full rounded-l-none justify-center pr-2 pl-6'
             } ${
                 isActive
-                    ? 'bg-[#6b6e95] text-[#F4EBD3]'
+                    ? 'bg-[#6b6e95] text-[#F4EBD3] ring-1 ring-white/30'
                     : 'text-[#F5EEDC]/70 hover:text-[#F5EEDC]'
             }`}>
                 {label}
@@ -171,7 +171,7 @@ function PlayButton({ to }) {
         <Link
             to={to}
             aria-label="Play"
-            className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all focus:outline-none focus-visible:ring focus-visible:ring-[#F5EEDC]/50 hover:bg-[#4f516a]"
+            className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 ring-1 ring-white/20 transition-all focus:outline-none hover:bg-[#4f516a]"
         >
             <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
                 isActive ? 'bg-emerald-500 text-white' : 'text-[#F5EEDC]/80 hover:text-[#F5EEDC]'
