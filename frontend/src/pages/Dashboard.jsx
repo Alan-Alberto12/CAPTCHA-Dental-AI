@@ -256,16 +256,16 @@ export default function Dashboard() {
 
           {/* Searchbar — full width on mobile, flex-1 on desktop */}
           <div className="flex-1 bg-[#525470] rounded-2xl px-3 py-3 shadow-md">
-            <div className="bg-[#3a3c56] rounded-xl px-4 py-2 md:py-5 flex items-center gap-2">
-              <svg className="w-4 h-4 text-[#F5EEDC]/40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" strokeWidth="2"/><path d="M21 21l-4.35-4.35" strokeWidth="2" strokeLinecap="round"/>
+            <div className="bg-[#F4EBD3] rounded-xl px-4 py-2 md:py-5 flex items-center gap-2">
+              <svg className="w-4 h-4 text-[#3a3c56]/40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" strokeWidth="3"/><path d="M21 21l-4.35-4.35" strokeWidth="3" strokeLinecap="round"/>
               </svg>
               <input
                 type="text"
                 placeholder="Search sessions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent text-base text-[#F5EEDC] focus:outline-none placeholder-[#F5EEDC]/40"
+                className="w-full bg-transparent text-base text-[#3a3c56] focus:outline-none placeholder-[#3a3c56]/40"
               />
             </div>
           </div>
