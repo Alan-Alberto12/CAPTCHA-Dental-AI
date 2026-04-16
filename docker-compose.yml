@@ -3,7 +3,7 @@ version: "3.8"
 services:
   # PostgreSQL Database
   db:
-    image: postgres:17-alpine
+    image: postgres:15-alpine
     container_name: captcha-dental-db
     environment:
       POSTGRES_USER: captcha_user
