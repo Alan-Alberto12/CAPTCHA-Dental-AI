@@ -19,7 +19,7 @@ export default function BottomTabs({ active, onChange }) {
     return (
         <nav
             aria-label="Bottom navigation"
-            className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#525470]/95 backdrop-blur-md border-t border-white/10"
+            className="md:hidden fixed inset-x-0 bottom-0 z-50 bg-[#525470]/95 backdrop-blur-md border-t border-white/10 shadow-[0_-4px_24px_rgba(0,0,0,0.35)]"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
             <div className="flex items-center justify-center h-16">
@@ -53,7 +53,7 @@ function BottomNavPill({ label, isActive, side, onClick }) {
         <button
             type="button"
             onClick={onClick}
-            className={`relative flex h-9 w-36 items-center rounded-full bg-black/20 p-1 transition-all outline-none cursor-pointer ${
+            className={`relative flex h-9 w-36 items-center rounded-full bg-black/20 p-1 ring-1 ring-white/20 transition-all outline-none cursor-pointer ${
                 isLeft ? "-mr-6 z-0" : "-ml-6 z-0"
             }`}
         >
@@ -63,7 +63,7 @@ function BottomNavPill({ label, isActive, side, onClick }) {
                     : "rounded-r-full rounded-l-none justify-center pr-2 pl-7"
             } ${
                 isActive
-                    ? "bg-[#F5EEDC] text-[#525470]"
+                    ? 'bg-[#6b6e95] text-[#F4EBD3]'
                     : "text-[#F5EEDC]/70"
             }`}>
                 {label}
@@ -78,7 +78,7 @@ function BottomPlayButton({ isActive, onClick }) {
             type="button"
             onClick={onClick}
             aria-label="Play"
-            className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
+            className="relative z-10 inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#474961] p-1 ring-1 ring-white/20 transition-all outline-none cursor-pointer hover:bg-[#4f516a]"
         >
             <span className={`flex h-full w-full items-center justify-center rounded-full transition-all ${
                 isActive ? "bg-emerald-500 text-white" : "text-[#F5EEDC]/80"

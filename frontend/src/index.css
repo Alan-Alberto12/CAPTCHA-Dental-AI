@@ -1,5 +1,6 @@
 @import "tailwindcss";
-body {
-  margin: 0;    /* palette: blue-gray */
-  color: #525470;          /* optional: default text in dark slate */
+html, body {
+  margin: 0;
+  background-color: #98A1BC;
+  color: #525470;
 }
