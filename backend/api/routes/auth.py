@@ -878,15 +878,17 @@ async def import_images_file(
         if not s3_url:
             return None, {"filename": filename, "error": "Failed to upload to S3"}
 
+        if not model_available:
+            return None, {"filename": filename, "error": "No trained model available. Cannot classify image."}
+
         label = "needs_expert_review"
         confidence = None
-        if model_available:
-            try:
-                pred = prediction_service.predict(file_data)
-                label = pred["label"]
-                confidence = pred["confidence"]
-            except Exception:
-                pass
+        try:
+            pred = prediction_service.predict(file_data)
+            label = pred["label"]
+            confidence = pred["confidence"]
+        except Exception as e:
+            return None, {"filename": filename, "error": f"Prediction failed: {str(e)}"}
 
         saved_to_db = False
         if label == "needs_expert_review":
