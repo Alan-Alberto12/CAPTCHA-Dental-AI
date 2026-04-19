@@ -1,35 +1,26 @@
-"""
-Data preparation — downloads labeled images from S3 into ImageFolder structure
-for PyTorch training.
-
-Expects S3 bucket to have images organized under label prefixes:
-  needs_review/image1.jpg
-  needs_review/image2.jpg
-  no_review/image3.jpg
-  no_review/image4.jpg
-"""
-
+"""Downloads labeled images from S3 into ImageFolder structure for PyTorch training"""
 import logging
 import os
 import random
 import shutil
 from pathlib import Path
-from typing import Tuple
 
-from ml.config import S3_LABEL_PREFIXES, TRAINING_DATA_DIR, TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT, RANDOM_SEED
+from ml.config import MODEL_LABELS, TRAINING_DATA_DIR, TRAIN_SPLIT, VAL_SPLIT, TEST_SPLIT, RANDOM_SEED
 from services.s3_service import s3_service
 
 logger = logging.getLogger(__name__)
 
+#helper func used by both "prepare" funcs to avoid repetition of mkdir + download loop
+def _download_to(urls: list, dest_dir: Path) -> int:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for url in urls:
+        local_path = str(dest_dir / os.path.basename(url))
+        if s3_service.download_file(url, local_path):
+            count += 1
+    return count
 
-def prepare_training_data() -> Tuple[Path, Path, Path]:
-    """
-    Download labeled images from S3 and organize into ImageFolder structure.
-
-    Returns:
-        (train_dir, val_dir, test_dir) paths ready for torchvision.datasets.ImageFolder
-    """
-    # Clean up any previous training data
+def prepare_training_data() -> tuple[Path, Path, Path]:
     cleanup_training_data()
 
     train_dir = TRAINING_DATA_DIR / "train"
@@ -38,9 +29,9 @@ def prepare_training_data() -> Tuple[Path, Path, Path]:
 
     random.seed(RANDOM_SEED)
 
-    total_downloaded = 0
+    downloaded_count = 0
 
-    for label, prefix in S3_LABEL_PREFIXES.items():
+    for label, prefix in MODEL_LABELS.items():
         print(f"Listing images for label '{label}' (prefix: {prefix})...")
         urls = s3_service.list_objects(prefix)
 
@@ -48,7 +39,7 @@ def prepare_training_data() -> Tuple[Path, Path, Path]:
             print(f"  WARNING: No images found under prefix '{prefix}'")
             continue
 
-        # Shuffle and split into train/val/test (80/10/10)
+        #shuffle and split into train/val/test (80/10/10)
         random.shuffle(urls)
         train_end = int(len(urls) * TRAIN_SPLIT)
         val_end = train_end + int(len(urls) * VAL_SPLIT)
@@ -58,60 +49,32 @@ def prepare_training_data() -> Tuple[Path, Path, Path]:
         test_urls = urls[val_end:test_end]
 
         print(f"  Found {len(urls)} images — {len(train_urls)} train, {len(val_urls)} val, {len(test_urls)} test")
+        
+        downloaded_count += _download_to(train_urls, train_dir / label)
+        downloaded_count += _download_to(val_urls, val_dir / label)
+        downloaded_count += _download_to(test_urls, test_dir / label)
 
-        # Download train images
-        train_label_dir = train_dir / label
-        train_label_dir.mkdir(parents=True, exist_ok=True)
-        for url in train_urls:
-            filename = os.path.basename(url)
-            local_path = str(train_label_dir / filename)
-            if s3_service.download_file(url, local_path):
-                total_downloaded += 1
 
-        # Download val images
-        val_label_dir = val_dir / label
-        val_label_dir.mkdir(parents=True, exist_ok=True)
-        for url in val_urls:
-            filename = os.path.basename(url)
-            local_path = str(val_label_dir / filename)
-            if s3_service.download_file(url, local_path):
-                total_downloaded += 1
+    print(f"Downloaded {downloaded_count} images total")
 
-        # Download test images
-        test_label_dir = test_dir / label
-        test_label_dir.mkdir(parents=True, exist_ok=True)
-        for url in test_urls:
-            filename = os.path.basename(url)
-            local_path = str(test_label_dir / filename)
-            if s3_service.download_file(url, local_path):
-                total_downloaded += 1
-
-    print(f"Downloaded {total_downloaded} images total")
-
-    if total_downloaded == 0:
+    if downloaded_count == 0:
         raise RuntimeError(
             "No images were downloaded from S3. "
             "Check that your S3 bucket has images under the prefixes: "
-            f"{list(S3_LABEL_PREFIXES.values())}"
+            f"{list(MODEL_LABELS.values())}"
         )
 
     return train_dir, val_dir, test_dir
 
 
+#func skips train/val/test splitting — cross-validation in train.py handles the splits instead
 def prepare_all_data() -> Path:
-    """
-    Download all labeled images from S3 into a single ImageFolder structure
-    without any train/val/test splitting. Used for cross-validation.
-
-    Returns:
-        Path to all_dir, organized as all_dir/label/image.jpg
-    """
     cleanup_training_data()
 
     all_dir = TRAINING_DATA_DIR / "all"
-    total_downloaded = 0
+    downloaded_count = 0
 
-    for label, prefix in S3_LABEL_PREFIXES.items():
+    for label, prefix in MODEL_LABELS.items():
         print(f"Listing images for label '{label}' (prefix: {prefix})...")
         urls = s3_service.list_objects(prefix)
 
@@ -120,29 +83,22 @@ def prepare_all_data() -> Path:
             continue
 
         print(f"  Found {len(urls)} images")
-        label_dir = all_dir / label
-        label_dir.mkdir(parents=True, exist_ok=True)
+        downloaded_count += _download_to(urls, all_dir / label)
 
-        for url in urls:
-            filename = os.path.basename(url)
-            local_path = str(label_dir / filename)
-            if s3_service.download_file(url, local_path):
-                total_downloaded += 1
 
-    print(f"Downloaded {total_downloaded} images total")
+    print(f"Downloaded {downloaded_count} images total")
 
-    if total_downloaded == 0:
+    if downloaded_count == 0:
         raise RuntimeError(
             "No images were downloaded from S3. "
             "Check that your S3 bucket has images under the prefixes: "
-            f"{list(S3_LABEL_PREFIXES.values())}"
+            f"{list(MODEL_LABELS.values())}"
         )
 
     return all_dir
 
 
 def cleanup_training_data():
-    """Remove temporary training data directory."""
     if TRAINING_DATA_DIR.exists():
         shutil.rmtree(TRAINING_DATA_DIR)
         logger.info(f"Cleaned up training data at {TRAINING_DATA_DIR}")
