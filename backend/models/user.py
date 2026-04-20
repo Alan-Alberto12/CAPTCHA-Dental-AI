@@ -89,6 +89,7 @@ class SessionImage(Base):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
     image_id = Column(Integer, ForeignKey("images.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=True)
     image_order = Column(Integer, nullable=False)  # Display order in the session
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

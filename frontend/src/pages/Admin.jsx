@@ -494,7 +494,7 @@ function UploadImages() {
                           style = 'bg-yellow-100 text-yellow-700';
                         }
                         else {
-                          message = 'Upload Failed. Please Try Again';
+                          message = r.reason || 'Upload Failed. Please Try Again';
                           style = 'bg-red-100 text-red-700';
                         }
                         return <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${style}`}>{message}</span>;

@@ -18,6 +18,7 @@ export default function PlayPage() {
     const [message, setMessage] = useState(null);
     const [questionStartTime, setQuestionStartTime] = useState(null);
 
+
     // Session completion
     const [sessionCompleted, setSessionCompleted] = useState(false);
     const [sessionTitle, setSessionTitle] = useState("");
@@ -62,7 +63,7 @@ export default function PlayPage() {
     // Start timer when question changes
     useEffect(() => {
         if (session && !sessionCompleted) {
-            setQuestionStartTime(Date.now());
+            setQuestionStartTime(new Date().toISOString());
         }
     }, [currentQuestionIndex, session]);
 
@@ -92,14 +93,16 @@ export default function PlayPage() {
             if (response.ok) {
                 const data = await response.json();
 
-                // Check if this is a resumed session
-                if (data.resumed) {
-                    setMessage("Resuming your previous session...");
-                    // Clear message after 3 seconds
-                    setTimeout(() => setMessage(null), 3000);
-                }
 
                 setSessionFromAPI(data);
+
+                // Prefetch all images across all questions so they're browser-cached
+                data.questions.forEach(question => {
+                    question.images.forEach(image => {
+                        const img = new window.Image();
+                        img.src = image.image_url;
+                    });
+                });
 
                 // Initialize answered questions from backend
                 const answeredSet = new Set(data.answered_question_ids || []);
@@ -117,7 +120,7 @@ export default function PlayPage() {
                 setCurrentQuestionIndex(firstUnansweredIndex);
                 setSelectedImages([]);
                 setSessionCompleted(answeredSet.size === data.questions.length);
-                setQuestionStartTime(Date.now());
+                setQuestionStartTime(new Date().toISOString());
             } else {
                 const errorData = await response.json();
                 setError(errorData.detail || "Failed to load session");
@@ -154,7 +157,7 @@ export default function PlayPage() {
         if (!session || sessionCompleted) return;
 
         const currentQuestion = session.questions[currentQuestionIndex];
-        const timeSpent = (Date.now() - questionStartTime) / 1000; // Convert to seconds
+        const timeSpent = (Date.now() - new Date(questionStartTime).getTime()) / 1000;
 
         setIsLoading(true);
         setError(null);
@@ -194,11 +197,6 @@ export default function PlayPage() {
                 } else {
                     //Go to next question if there's still any left
                     handleNextQuestion();
-                    // setMessage("Answer submitted!");
-                    // // Auto-advance to next unanswered question after 1 second
-                    // setTimeout(() => {
-                    //     handleNextQuestion();
-                    // }, 1000);
                 }
                 // Clear selected images
                 setSelectedImages([]);
@@ -308,7 +306,9 @@ export default function PlayPage() {
     if (isLoading && !session) {
         return (
             <div className="min-h-screen bg-[#98A1BC] flex items-center justify-center">
-                <div className="text-[#F5EEDC] text-xl font-semibold">Loading session...</div>
+                <div className="text-[#F5EEDC] text-xl font-semibold">
+                    Loading Session...
+                </div>
             </div>
         );
     }
@@ -377,13 +377,6 @@ export default function PlayPage() {
         <div className="min-h-screen bg-[#98A1BC] pb-8">
             <div className="mx-auto w-full max-w-6xl px-3 md:px-4 lg:px-8 pt-6">
 
-                {/* Header with Progress */}
-                <div className="mb-4 flex items-center justify-between">
-                    <div className="text-[#F5EEDC]">
-                        <p className="text-sm font-medium">Session {session.session_number ?? 1}</p>
-                    </div>
-                </div>
-
                 {!sessionCompleted && (
                     <>
                     {/* Question Prompt */}
@@ -399,7 +392,7 @@ export default function PlayPage() {
                     </div>
 
                     {/* Instructions */}
-                    <div className="mb-4 bg-white/10 rounded-md px-4 py-2">
+                    <div className="hidden md:block mb-4 bg-white/10 rounded-md px-4 py-2">
                         <p className="text-[#F5EEDC] text-sm">
                             Selected: {selectedImages.length}
                         </p>
@@ -407,7 +400,7 @@ export default function PlayPage() {
 
                     {/* Image Grid (2x2) */}
                     <div className="grid grid-cols-2 gap-4 mb-6 max-w-xl mx-auto">
-                        {session.images.map((image) => {
+                        {currentQuestion.images.map((image) => {
                             const isSelected = selectedImages.includes(image.id);
                             return (
                                 <div
@@ -444,12 +437,6 @@ export default function PlayPage() {
                 )}
 
                 {/* Messages */}
-                {isRefreshing && (
-                    <div className="mb-4 rounded-lg bg-blue-500/20 border border-blue-500 px-4 py-3">
-                        <p className="text-[#F5EEDC] font-medium">Refreshing images...</p>
-                    </div>
-                )}
-
                 {refreshError && (
                     <div className="mb-4 rounded-lg bg-red-500/20 border border-red-500 px-4 py-3">
                         <p className="text-[#F5EEDC] font-medium">{refreshError}</p>
@@ -470,29 +457,29 @@ export default function PlayPage() {
 
                 {/* Action Buttons */}
                 {!sessionCompleted ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-lg mx-auto">
+                    <div className="grid grid-cols-3 gap-2 max-w-lg mx-auto">
                         <button
                             onClick={handlePreviousQuestion}
-                            className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
+                            className="rounded-lg border-2 border-[#525470] px-2 py-2 md:px-4 md:py-3 text-sm md:text-base font-medium text-[#F5EEDC] hover:bg-[#525470]/30 cursor-pointer"
                         >
-                            ← Previous
+                            ← Prev.
                         </button>
                         <button
                             onClick={handleSubmitAnswer}
                             disabled={isLoading || answeredQuestions.has(currentQuestion.id)}
                             className={`
-                                rounded-lg px-4 py-3 font-medium
+                                rounded-lg px-2 py-2 md:px-4 md:py-3 text-sm md:text-base font-medium
                                 ${answeredQuestions.has(currentQuestion.id)
                                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                                    : 'bg-[#F5EEDC] text-[#525470] hover:bg-[#F5EEDC]/90'
+                                    : 'bg-[#F5EEDC] text-[#525470] hover:bg-[#F5EEDC]/90 cursor-pointer'
                                 }
                             `}
                         >
-                            {isLoading ? 'Submitting...' : answeredQuestions.has(currentQuestion.id) ? 'Already Answered' : 'Submit Answer'}
+                            {isLoading ? '...' : answeredQuestions.has(currentQuestion.id) ? 'Answered' : 'Submit'}
                         </button>
                         <button
                             onClick={handleNextQuestion}
-                            className="rounded-lg border-2 border-[#525470] py-3 py-2 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
+                            className="rounded-lg border-2 border-[#525470] px-2 py-2 md:px-4 md:py-3 text-sm md:text-base font-medium text-[#F5EEDC] hover:bg-[#525470]/30 cursor-pointer"
                         >
                             Next →
                         </button>
@@ -560,7 +547,7 @@ export default function PlayPage() {
 
                 {/* Question Navigation Dots */}
                 {!sessionCompleted && (
-                    <div className="mt-8 flex justify-center gap-2">
+                    <div className="mt-5 flex justify-center gap-2">
                         {session.questions.map((q, idx) => (
                             <button
                                 key={q.id}

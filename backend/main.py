@@ -42,6 +42,18 @@ app.include_router(auth.router)
 app.include_router(ml.router)
 app.include_router(leaderboard.router)
 
+@app.on_event("startup")
+async def load_ml_model():
+    try:
+        from ml.predict import PredictionService
+        service = PredictionService.get_instance()
+        if service.load_model():
+            import logging
+            logging.getLogger(__name__).info("ML model loaded at startup")
+    except Exception:
+        pass  # model may not exist yet (before first training run)
+
+
 @app.get("/")
 async def root():
     return {"message": "CAPTCHA Dental AI API", "status": "running"}

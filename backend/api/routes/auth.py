@@ -28,6 +28,7 @@ from models.user import (
     Question,
     UserStats,
     Prediction,
+    PointTransaction,
 )
 from schemas.user import (
     UserCreate,
@@ -474,27 +475,6 @@ def get_current_session(db: Session = Depends(get_db), current_user: User = Depe
     if not session:
         return None
 
-    session_images = (
-        db.query(SessionImage)
-        .filter(SessionImage.session_id == session.id)
-        .order_by(SessionImage.image_order)
-        .all()
-    )
-
-    images = []
-    for si in session_images:
-        image = db.query(Image).filter(Image.id == si.image_id).first()
-        if image:
-            presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
-            images.append(
-                {
-                    "id": image.id,
-                    "filename": image.filename,
-                    "image_url": presigned_url if presigned_url else image.image_url,
-                    "order": si.image_order,
-                }
-            )
-
     session_questions = (
         db.query(SessionQuestion)
         .filter(SessionQuestion.session_id == session.id)
@@ -506,27 +486,43 @@ def get_current_session(db: Session = Depends(get_db), current_user: User = Depe
     for sq in session_questions:
         question = db.query(Question).filter(Question.id == sq.question_id).first()
         if question:
-            questions.append(
-                {
-                    "id": question.id,
-                    "question_text": question.question_text,
-                    "question_type": question.question_type,
-                    "order": sq.question_order,
-                }
+            images_per_q = (
+                db.query(SessionImage)
+                .filter(SessionImage.session_id == session.id, SessionImage.question_id == sq.question_id)
+                .order_by(SessionImage.image_order)
+                .all()
             )
+            images = []
+            for si in images_per_q:
+                image = db.query(Image).filter(Image.id == si.image_id).first()
+                if image:
+                    images.append ({
+                        "id": image.id,
+                        "filename": image.filename,
+                        "image_url": s3_service.generate_presigned_url(image.image_url, expiration=10) or image.image_url,
+                        "order": si.image_order,
+                    })
+            questions.append({
+                "id": question.id,
+                "question_text": question.question_text,
+                "question_type": question.question_type,
+                "order": sq.question_order,
+                "images": images,
+            })
 
     answered_annotations = db.query(Annotation.question_id).filter(Annotation.session_id == session.id).all()
     answered_question_ids = [a[0] for a in answered_annotations]
 
-    session_number = db.query(AnnotationSession).filter(
+    completed_count = db.query(AnnotationSession).filter(
         AnnotationSession.user_id == current_user.id,
-        AnnotationSession.id <= session.id
+        AnnotationSession.is_completed == True
     ).count()
+    session_number = completed_count + 1
 
     return {
         "session_id": session.id,
         "session_number": session_number,
-        "images": images,
+        "images": [],  # images are now nested under each question, so we can return an empty array to simplify frontend handling -DH
         "questions": questions,
         "answered_question_ids": answered_question_ids,
         "started_at": session.started_at,
@@ -564,7 +560,11 @@ def get_completed_sessions(
         if session_first_image:
             image = db.query(Image).filter(Image.id == session_first_image.image_id).first()
             if image:
-                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
+                thumbnail_url = s3_service.generate_presigned_url(image.image_url, expiration=10)
+
+        points_earned = db.query(func.sum(PointTransaction.points)).filter(
+            PointTransaction.session_id == session.id
+        ).scalar() or 0
 
         result.append({
             "session_id": session.id,
@@ -574,6 +574,7 @@ def get_completed_sessions(
             "question_count": question_count,
             "thumbnail_url": thumbnail_url,
             "session_number": session_number,
+            "points_earned": points_earned,
         })
 
     return result
@@ -597,26 +598,7 @@ def get_session_overview (
     if not completed_session.is_completed:
         raise HTTPException(status_code=400, detail="Session is not completed")
 
-    # get images in the same 2x2 order 
-    completed_session_images = (
-        db.query(SessionImage).filter(SessionImage.session_id == completed_session.id)
-        .order_by(SessionImage.image_order).all()
-    )
-    images = []
-    for si in completed_session_images:
-        image = db.query(Image).filter(Image.id == si.image_id).first()
-        if image:
-            image_presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=3600)
-            images.append({
-                "id": image.id,
-                "filename": image.filename,
-                "image_url": image_presigned_url 
-                    if image_presigned_url 
-                    else image.image_url,
-                "order": si.image_order,
-            })
-
-    # get the questions in order (similar to image implementation right above)
+    # get the questions in order with per-question images
     completed_session_questions = (
         db.query(SessionQuestion).filter(SessionQuestion.session_id == completed_session.id)
         .order_by(SessionQuestion.question_order).all()
@@ -625,11 +607,27 @@ def get_session_overview (
     for sq in completed_session_questions:
         question = db.query(Question).filter(Question.id == sq.question_id).first()
         if question:
+            images_per_q = (
+                db.query(SessionImage)
+                .filter(SessionImage.session_id == completed_session.id, SessionImage.question_id == sq.question_id)
+                .order_by(SessionImage.image_order).all()
+            )
+            images = []
+            for si in images_per_q:
+                image = db.query(Image).filter(Image.id == si.image_id).first()
+                if image:
+                    images.append({
+                        "id": image.id,
+                        "filename": image.filename,
+                        "image_url": s3_service.generate_presigned_url(image.image_url, expiration=10) or image.image_url,
+                        "order": si.image_order,
+                    })
             questions.append({
                 "id": question.id,
                 "question_text": question.question_text,
                 "question_type": question.question_type,
                 "order": sq.question_order,
+                "images": images,
             })
 
     # arrange image IDs per question
@@ -649,7 +647,6 @@ def get_session_overview (
         "session_id": completed_session.id,
         "title": completed_session.title,
         "completed_at": completed_session.completed_at,
-        "images": images,
         "questions": questions,
         "selected_images_per_question": selected_images_per_question,
     }
@@ -662,91 +659,14 @@ def get_next_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not force_new:
-        existing_session = (
-            db.query(AnnotationSession)
-            .filter(
-                AnnotationSession.user_id == current_user.id,
-                AnnotationSession.is_completed == False,
-            )
-            .order_by(AnnotationSession.started_at.desc())
-            .first()
-        )
-
-        if existing_session:
-            session_images = (
-                db.query(SessionImage)
-                .filter(SessionImage.session_id == existing_session.id)
-                .order_by(SessionImage.image_order)
-                .all()
-            )
-
-            images = []
-            for si in session_images:
-                image = db.query(Image).filter(Image.id == si.image_id).first()
-                if image:
-                    presigned_url = s3_service.generate_presigned_url(image.image_url, expiration=30)
-                    images.append(
-                        {
-                            "id": image.id,
-                            "filename": image.filename,
-                            "image_url": presigned_url if presigned_url else image.image_url,
-                            "order": si.image_order,
-                        }
-                    )
-
-            session_questions = (
-                db.query(SessionQuestion)
-                .filter(SessionQuestion.session_id == existing_session.id)
-                .order_by(SessionQuestion.question_order)
-                .all()
-            )
-
-            questions = []
-            for sq in session_questions:
-                question = db.query(Question).filter(Question.id == sq.question_id).first()
-                if question:
-                    questions.append(
-                        {
-                            "id": question.id,
-                            "question_text": question.question_text,
-                            "question_type": question.question_type,
-                            "order": sq.question_order,
-                        }
-                    )
-
-            answered_annotations = (
-                db.query(Annotation.question_id).filter(Annotation.session_id == existing_session.id).all()
-            )
-            answered_question_ids = [a[0] for a in answered_annotations]
-
-            session_number = db.query(AnnotationSession).filter(
-                AnnotationSession.user_id == current_user.id,
-                AnnotationSession.id <= existing_session.id
-            ).count()
-
-            return {
-                "session_id": existing_session.id,
-                "session_number": session_number,
-                "images": images,
-                "questions": questions,
-                "answered_question_ids": answered_question_ids,
-                "started_at": existing_session.started_at,
-                "resumed": True,
-            }
     # resume existing session if one is in progress
     if not force_new:
         existing = get_current_session(db=db, current_user=current_user)
-        if existing and existing.get("questions") and existing.get("images"):
+        if existing and existing.get("questions"):
             return {**existing, "resumed": True}
 
-    num_images = 4
-
+    num_images_per_question = 4
     num_questions = 3
-
-    images = db.query(Image).order_by(func.random()).limit(num_images).all()
-    if len(images) < num_images:
-        raise HTTPException(status_code=404, detail=f"Not enough images available (need {num_images}, found {len(images)})")
 
     questions = (
         db.query(Question)
@@ -762,38 +682,49 @@ def get_next_session(
     db.add(session)
     db.flush()
 
-    for order, image in enumerate(images, start=1):
-        db.add(SessionImage(session_id=session.id, image_id=image.id, image_order=order))
+    # Select all images needed for the session at once to avoid duplicates across questions
+    total_images_needed = num_questions * num_images_per_question
+    all_session_images = db.query(Image).order_by(func.random()).limit(total_images_needed).all()
+    if len(all_session_images) < total_images_needed:
+        raise HTTPException(status_code=404, detail=f"Not enough images available (need {total_images_needed}, found {len(all_session_images)})")
 
+    images_per_q_map = {}
     for order, question in enumerate(questions, start=1):
         db.add(SessionQuestion(session_id=session.id, question_id=question.id, question_order=order))
+        start = (order - 1) * num_images_per_question
+        images_per_q = all_session_images[start:start + num_images_per_question]
+        images_per_q_map[question.id] = images_per_q
+        for image_order, image in enumerate(images_per_q, start=1):
+            db.add(SessionImage(session_id=session.id, image_id=image.id, question_id=question.id, image_order=image_order))
 
     db.commit()
     db.refresh(session)
 
-    session_number = db.query(AnnotationSession).filter(
+    completed_count = db.query(AnnotationSession).filter(
         AnnotationSession.user_id == current_user.id,
-        AnnotationSession.id <= session.id
+        AnnotationSession.is_completed == True
     ).count()
+    session_number = completed_count + 1
 
     return {
         "session_id": session.id,
         "session_number": session_number,
-        "images": [
-            {
-                "id": img.id,
-                "filename": img.filename,
-                "image_url": s3_service.generate_presigned_url(img.image_url, expiration=30) or img.image_url,
-                "order": order,
-            }
-            for order, img in enumerate(images, start=1)
-        ],
+        "images": [],
         "questions": [
             {
                 "id": q.id,
                 "question_text": q.question_text,
                 "question_type": q.question_type,
                 "order": order,
+                "images": [
+                    {
+                        "id": img.id,
+                        "filename": img.filename,
+                        "image_url": s3_service.generate_presigned_url(img.image_url, expiration=10) or img.image_url,
+                        "order": img_order,
+                    }
+                    for img_order, img in enumerate(images_per_q_map[q.id], start=1)
+                ],
             }
             for order, q in enumerate(questions, start=1)
         ],
@@ -1004,15 +935,17 @@ async def import_images_file(
         if not s3_url:
             return None, {"filename": filename, "error": "Failed to upload to S3"}
 
+        if not model_available:
+            return None, {"filename": filename, "error": "No trained model available. Cannot classify image."}
+
         label = "needs_expert_review"
         confidence = None
-        if model_available:
-            try:
-                pred = prediction_service.predict(file_data)
-                label = pred["label"]
-                confidence = pred["confidence"]
-            except Exception:
-                pass
+        try:
+            pred = prediction_service.predict(file_data)
+            label = pred["label"]
+            confidence = pred["confidence"]
+        except Exception as e:
+            return None, {"filename": filename, "error": f"Prediction failed: {str(e)}"}
 
         saved_to_db = False
         if label == "needs_expert_review":
