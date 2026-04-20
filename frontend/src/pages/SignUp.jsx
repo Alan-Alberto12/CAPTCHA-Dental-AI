@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from '../config';
 
@@ -13,6 +13,9 @@ function SignUp() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [message, setMessage] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [resendMessage, setResendMessage] = useState("");
+    const [isResending, setIsResending] = useState(false);
+    const submittedEmailRef = useRef("");
 
     const validatePassword = (password) => {
       const minLength = password.length >= 8;
@@ -21,6 +24,28 @@ function SignUp() {
       const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
       
       return { minLength, hasUppercase, hasNumber, hasSpecial };
+    };
+
+    const handleResend = async () => {
+      setIsResending(true);
+      setResendMessage("");
+      try {
+        const response = await fetch(`${API_URL}/auth/resend-confirmation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: submittedEmailRef.current }),
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setResendMessage("Confirmation email resent! Please check your inbox.");
+        } else {
+          setResendMessage(data.detail || "Failed to resend email.");
+        }
+      } catch {
+        setResendMessage("An error occurred. Please try again.");
+      } finally {
+        setIsResending(false);
+      }
     };
 
     const handleSubmit = async (e) => {
@@ -53,6 +78,7 @@ function SignUp() {
         if(response.ok) {
           const data = await response.json();
           setMessage(`User ${data.username} registered successfully!`);
+          submittedEmailRef.current = email;
           setEmail("");
           setUsername("");
           setFullName("");
@@ -63,7 +89,6 @@ function SignUp() {
         } 
         else {
           const errorData = await response.json();
-          // Handle different error response formats
           let errorMessage = "Signup failed.";
           if (typeof errorData.detail === 'string') {
             errorMessage = errorData.detail;
@@ -103,6 +128,23 @@ function SignUp() {
                 >
                   Back to Login
                 </button>
+
+                <div className="mt-6">
+                  <p className="text-[#F4EBD3] text-sm mb-3">
+                    Resend Confirmation
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isResending}
+                    className="border p-2 rounded-xl bg-transparent border-[#F4EBD3] text-[#F4EBD3] text-sm font-semibold hover:bg-[#F4EBD3] hover:bg-opacity-20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isResending ? "Resending..." : "Resend Confirmation Email"}
+                  </button>
+                  {resendMessage && (
+                    <p className="text-[#F4EBD3] text-sm mt-3 font-semibold">{resendMessage}</p>
+                  )}
+                </div>
               </div>
             </div>
           )}

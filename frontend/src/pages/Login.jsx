@@ -35,7 +35,7 @@ function Login() {
 
     const handleEmailConfirmation = async (token) => {
         try {
-            
+
             const response = await fetch(`${API_URL}/auth/confirm-email`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -254,7 +254,7 @@ function Login() {
                             <p className="text-[#F4EBD3] text-center mb-6">
                                 Enter your email address and we'll send you a link to reset your password.
                             </p>
-                            
+
                             <input
                                 className="w-full border p-2 rounded text-[#F4EBD3] bg-transparent placeholder-[#F4EBD3] placeholder-opacity-60 mb-4"
                                 type="email"
@@ -292,7 +292,7 @@ function Login() {
             <form onSubmit={handleSubmit}>
                 <div className="flex flex-col gap-4 w-100 p-6 bg-[#555879] rounded-xl shadow-lg">
                     <h2 className="text-center text-3xl font-bold text-[#F4EBD3]">Log In</h2>
-                    
+
                     <input
                         className="border p-2 rounded text-[#F4EBD3] bg-transparent placeholder-[#F4EBD3] placeholder-opacity-60"
                         type="text"

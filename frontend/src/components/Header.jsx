@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { API_URL } from '../config';
+import dentagLogo from '../assets/dentaglogo.png';
 
 
 export default function Header( {
