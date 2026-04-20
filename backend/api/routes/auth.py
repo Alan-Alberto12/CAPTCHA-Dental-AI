@@ -1,6 +1,4 @@
 # FastAPI core
-from fileinput import filename
-
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -10,7 +8,6 @@ import secrets
 import hashlib
 import zipfile
 import io
-import random
 
 from services.database import get_db
 from services.s3_service import s3_service
@@ -27,12 +24,10 @@ from models.user import (
     Image,
     Question,
     UserStats,
-    Prediction,
     PointTransaction,
 )
 from schemas.user import (
     UserCreate,
-    UserLogin,
     UserResponse,
     Token,
     ForgotPasswordRequest,
@@ -41,7 +36,6 @@ from schemas.user import (
     ResendConfirmationRequest,
     UserUpdate,
     AdminUserRequest,
-    ChallengeResponse,
     AnnotationResponse,
     AnnotationCreate,
     BulkImageImport,
@@ -203,9 +197,6 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login and get access token."""
-    user = db.query(User).filter(
-        (User.email == form_data.username) | (User.username == form_data.username)
-    ).first()
     login_input = form_data.username
     if "@" in login_input:
         user = db.query(User).filter(func.lower(User.email) == login_input.lower()).first()
@@ -825,11 +816,6 @@ def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depen
     return annotations
 
 
-@router.post("/admin/import-images-url", status_code=201)
-def import_images_url(payload: BulkImageImport, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Import multiple images from URLs (admin only)"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can import images")
 @router.patch("/sessions/{session_id}/title")
 def update_session_title(
     session_id: int,
@@ -1021,9 +1007,6 @@ async def import_images_file(
             else:
                 results.append(result)
 
-        except Exception as e:
-            failed.append({"filename": file.filename, "error": str(e)})
-
     saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
     already_existed_count = sum(1 for r in results if r.get("already_existed"))
 
@@ -1094,13 +1077,9 @@ def update_user(
     return current_user
 
 
-# Admin: All Users Submission Overview  ✅ FIXED (uses case(), not func.case())
 @router.get("/admin/users/submissions-overview", response_model=AdminAllUsersOverview)
-def all_users_submission_overview(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def all_users_submission_overview(db: Session = Depends(get_db), _: User = Depends(get_current_admin)):
     """Admin: aggregated submission stats for all users."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can view this data")
-
     sessions_sq = (
         db.query(
             AnnotationSession.user_id.label("user_id"),
