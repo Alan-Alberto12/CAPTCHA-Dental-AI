@@ -1,8 +1,4 @@
-"""
-Prediction service — loads a trained model and runs inference on images.
-Uses singleton pattern so the model stays in memory across API requests.
-"""
-
+"""EfficientNet-B0 Prediction Service"""
 import logging
 from io import BytesIO
 from pathlib import Path
@@ -20,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class PredictionService:
-    """Loads a trained CNN and runs predictions on image bytes."""
-
     _instance = None
 
     def __init__(self):
@@ -43,19 +37,12 @@ class PredictionService:
 
     @classmethod
     def get_instance(cls) -> "PredictionService":
-        """Return the singleton instance."""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
     def load_model(self, model_path: Optional[str] = None) -> bool:
-        """
-        Load a trained model from a .pth checkpoint.
-        Defaults to latest.pth if no path is given.
-
-        Returns:
-            True if model loaded successfully, False otherwise
-        """
+        #load checkpoint from path (or latest.pth if no path given). Returns True on success
         if model_path is None:
             path = ML_MODELS_DIR / "latest.pth"
         else:
@@ -71,7 +58,6 @@ class PredictionService:
         self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
 
         self.model = get_model(
-            arch=self.arch,
             num_classes=checkpoint["num_classes"],
             pretrained=False,
         )
@@ -83,26 +69,14 @@ class PredictionService:
         return True
 
     def predict(self, image_bytes: bytes) -> dict:
-        """
-        Run prediction on raw image bytes.
-
-        Args:
-            image_bytes: Raw bytes of a JPEG/PNG image
-
-        Returns:
-            {"label": "needs_review"|"no_review", "confidence": 0.95}
-
-        Raises:
-            RuntimeError: If no model is loaded
-        """
         if self.model is None:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
         image = PILImage.open(BytesIO(image_bytes)).convert("RGB")
-        tensor = self.transform(image).unsqueeze(0).to(self.device)
+        img_tensor = self.transform(image).unsqueeze(0).to(self.device) # add batch dimension
 
         with torch.no_grad():
-            outputs = self.model(tensor)
+            outputs = self.model(img_tensor)
             probabilities = F.softmax(outputs, dim=1)
             confidence, predicted_idx = torch.max(probabilities, 1)
 

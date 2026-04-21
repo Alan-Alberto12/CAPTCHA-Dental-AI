@@ -3,6 +3,15 @@ import { useNavigate, Link } from 'react-router-dom';
 import { API_URL } from '../config';
 
 
+//render image placeholder for empty sessions and empty thumbnails 
+const ImagePlaceholder = () => (
+    <svg className="w-12 h-12 text-[#F5EEDC]/30 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1.5"/>
+      <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+      <path d="M21 15l-5-5L5 21" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
 export default function Dashboard() {
   const navigate = useNavigate();
 
@@ -12,10 +21,8 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
-  const [questionOverviewCount, setQuestionOverviewCount] = useState(0);
+  const [questionOverviewIndex, setQuestionOverviewIndex] = useState(0);
 
-
-  //fetch data on mount
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -28,7 +35,7 @@ export default function Dashboard() {
     }
 
     try {
-      const [completedCase, currentCase, statsCase] = await Promise.all([
+      const [completedRes, currentRes, statsRes] = await Promise.all([
         fetch(`${API_URL}/auth/sessions/completed`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
@@ -40,10 +47,11 @@ export default function Dashboard() {
         }),
       ]);
 
-      if(completedCase.ok) {
-        const completedData = await completedCase.json();
+      if(completedRes.ok) {
+        const completedData = await completedRes.json();
         setCompletedSessions(completedData);
         completedData.forEach(session => {
+          //preload thumbnails so cards render instantly
           if (session.thumbnail_url) {
             const img = new window.Image();
             img.src = session.thumbnail_url;
@@ -51,13 +59,13 @@ export default function Dashboard() {
         });
       }
 
-      if(currentCase.ok) {
-        const currentData = await currentCase.json();
+      if(currentRes.ok) {
+        const currentData = await currentRes.json();
         setHasInProgressSession(currentData !== null);
       }
 
-      if(statsCase.ok) {
-        setUserStats(await statsCase.json());
+      if(statsRes.ok) {
+        setUserStats(await statsRes.json());
       }
     } catch (error) {
       console.error('Error fetching dashboard cases:', error);
@@ -66,7 +74,7 @@ export default function Dashboard() {
     }
   };
 
-  const sessionOverviewDisplay = async (sessionId) => {
+  const displaySessionOverview = async (sessionId) => {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/auth/sessions/${sessionId}/overview`, {
       headers: {'Authorization': `Bearer ${token}` }
@@ -79,17 +87,17 @@ export default function Dashboard() {
           img.src = image.image_url;
         });
       });
-      setQuestionOverviewCount(0);
+      setQuestionOverviewIndex(0);
       setSelectedSession(data);
     }
   }
   
-   //Search bar functionality - search by title or session id
-  const filteredCases = completedSessions.filter(session => {
+  //search bar functionality: lookup by session title or number
+  const filteredSessions = completedSessions.filter(session => {
     const searchLower = searchTerm.toLowerCase();
     const titleMatch = session.title?.toLowerCase().includes(searchLower);
-    const idMatch = `Session ${session.session_id}`.toLowerCase().includes(searchLower);
-    return titleMatch || idMatch;
+    const indexMatch = `Session ${session.session_number}`.toLowerCase().includes(searchLower);
+    return titleMatch || indexMatch;
   });
 
   if (isLoading) {
@@ -101,7 +109,7 @@ export default function Dashboard() {
   }
  
   if (selectedSession) {
-    const currentQuestion = selectedSession.questions[questionOverviewCount]
+    const currentQuestion = selectedSession.questions[questionOverviewIndex]
     const selectedImages = selectedSession.selected_images_per_question[currentQuestion.id] ?? []
 
     return (
@@ -120,15 +128,14 @@ export default function Dashboard() {
           <div className="mb-3 rounded-lg bg-[#525470] px-6 py-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[#F5EEDC] text-sm opacity-80">
-                Question {questionOverviewCount + 1} of {selectedSession.questions.length}
+                Question {questionOverviewIndex + 1} of {selectedSession.questions.length}
               </span>
             </div>
-            <h1 className="text-xl md:text-xl font-semibold text-[#F5EEDC]">
+            <h1 className="text-xl font-semibold text-[#F5EEDC]">
               {currentQuestion.question_text}
             </h1>
           </div>
 
-          {/* Instructions */}
           <div className="mb-4 bg-white/10 rounded-md px-4 py-2">
             <p className="text-[#F5EEDC] text-sm">
               Selected: {selectedImages.length}
@@ -167,10 +174,9 @@ export default function Dashboard() {
             })}
           </div>
 
-        {/* Action Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-lg mx-auto">
           <button
-            onClick={() => setQuestionOverviewCount(i => Math.max(0, i - 1))}
+            onClick={() => setQuestionOverviewIndex(i => Math.max(0, i - 1))}
             className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
           >
             ← Previous
@@ -182,7 +188,7 @@ export default function Dashboard() {
             Already Submitted
           </button>
           <button
-            onClick={() => setQuestionOverviewCount(i => Math.min(selectedSession.questions.length - 1, i + 1))}
+            onClick={() => setQuestionOverviewIndex(i => Math.min(selectedSession.questions.length - 1, i + 1))}
             className="rounded-lg border-2 border-[#525470] px-4 py-3 font-medium text-[#F5EEDC] hover:bg-[#525470]/30"
           >
             Next →
@@ -194,9 +200,9 @@ export default function Dashboard() {
           {selectedSession.questions.map((q, idx) => (
             <button
               key={q.id}
-              onClick={() => setQuestionOverviewCount(idx)}
+              onClick={() => setQuestionOverviewIndex(idx)}
               className={`w-3 h-3 rounded-full transition-all ${
-                idx === questionOverviewCount ? 'bg-[#F5EEDC] w-8' : 'bg-[#525470]'
+                idx === questionOverviewIndex ? 'bg-[#F5EEDC] w-8' : 'bg-[#525470]'
               }`}
             />
           ))}
@@ -209,9 +215,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#98A1BC] pb-20 md:pb-6">
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        
         {/* In-Progress Session Banner */}
         {hasInProgressSession && (
           <Link
@@ -229,9 +233,7 @@ export default function Dashboard() {
           </Link>
         )}
 
-        {/* Stat cards + searchbar */}
         <div className="flex flex-col md:flex-row gap-3 mb-8">
-          {/* Stats row — always one row */}
           <div className="flex gap-3">
             <div className="bg-[#525470] rounded-3xl p-3 md:p-4 text-center shadow-md flex-1 md:flex-none md:min-w-[100px] flex flex-col justify-between">
               <h3 className="text-[10px] md:text-xs font-semibold text-[#F5EEDC]/50 uppercase tracking-wide mb-1">
@@ -280,15 +282,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Sessions Grid OR Empty State */}
-        {filteredCases.length === 0 ? (
+        {filteredSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="bg-[#525470] rounded-3xl px-8 py-10 shadow-md max-w-sm">
-              <svg className="w-12 h-12 text-[#F5EEDC]/30 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1.5"/>
-                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-                <path d="M21 15l-5-5L5 21" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <ImagePlaceholder />
               <p className="text-[#F5EEDC] font-semibold text-lg">
                 {completedSessions.length === 0 ? 'No sessions yet' : 'No results found'}
               </p>
@@ -299,15 +296,15 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
-            {filteredCases.map((session) => (
+            {filteredSessions.map((session) => (
               <div
                 key={session.session_id}
-                onClick={() => sessionOverviewDisplay(session.session_id)}
+                onClick={() => displaySessionOverview(session.session_id)}
                 className="bg-[#525470] rounded-2xl shadow-md overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all duration-200 cursor-pointer"
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-bold text-base text-[#F4EBD3] truncate" title={session.title || `Session ${session.session_id}`}>
+                    <h3 className="font-bold text-base text-[#F4EBD3] truncate" title={session.title || `Session ${session.session_number}`}>
                       {session.title || `Session ${session.session_number}`}
                     </h3>
                     {session.points_earned > 0 && (
@@ -326,11 +323,7 @@ export default function Dashboard() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <svg className="w-12 h-12 text-[#F4EBD3]/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" strokeWidth="1.5"/>
-                        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-                        <path d="M21 15l-5-5L5 21" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                      <ImagePlaceholder />
                     )}
                   </div>
                 </div>

@@ -1,18 +1,11 @@
 #!/usr/bin/env python
-"""
-Standalone CNN training script for dental image binary classification.
-
-Usage (from backend/ directory):
-    python -m ml.train
-    python -m ml.train --arch efficientnet_b0 --epochs 10 --batch-size 16
-"""
-
+"""EfficientNet-B0 Training Script: binary classification of dental X-rays."""
 import argparse
 from datetime import datetime
 
-# matplotlib: used to save ROC curve plot after cross-validation
+#matplotlib: used to save ROC curve plot after cross-validation
 import matplotlib
-matplotlib.use("Agg")  # non-interactive backend for saving files
+matplotlib.use("Agg")  #non-interactive backend for saving files
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -25,7 +18,7 @@ from torchvision import datasets, transforms
 
 from ml.config import (
     BATCH_SIZE,
-    DEFAULT_MODEL_ARCH,
+    MODEL_ARCH,
     EARLY_STOP_PATIENCE,
     IMAGE_SIZE,
     LEARNING_RATE,
@@ -47,26 +40,21 @@ else:
     DEVICE = torch.device("cpu")
 
 
-def save_roc_curve(fpr, tpr, auc_score, fold_results, output_path):
-    """
-    Save ROC curve plot to a PNG file.
-    Called after cross-validation using the aggregated held-out predictions.
-    Plots each fold's curve (for variance context) plus the aggregated curve.
-    """
+def save_roc_curve(fpr, tpr, auc_score, fold_results, output_path, arch):
     fig, ax = plt.subplots(figsize=(7, 6))
 
-    # Per-fold curves (light, for context)
+    #per-fold curves
     for r in fold_results:
         fold_probs = [p[1] for p in r["probs"]]
         f_fpr, f_tpr, _ = roc_curve(r["labels"], fold_probs)
         ax.plot(f_fpr, f_tpr, color="steelblue", alpha=0.3, linewidth=1,
                 label=f"Fold {r['fold']} (AUC={r['auc']:.3f})")
 
-    # Aggregated curve across all folds (bold)
+    #aggregated curve across all folds
     ax.plot(fpr, tpr, color="crimson", linewidth=2.5,
             label=f"Aggregated CV (AUC={auc_score:.3f})")
 
-    # Diagonal reference line (random classifier baseline)
+    #diagonal reference line (random classifier baseline)
     ax.plot([0, 1], [0, 1], "k--", linewidth=1, label="Random classifier")
 
     ax.set_xlabel("False Positive Rate", fontsize=12)
@@ -83,7 +71,6 @@ def save_roc_curve(fpr, tpr, auc_score, fold_results, output_path):
 
 
 def get_transforms():
-    """Training transforms with augmentation, validation without."""
     train_transform = transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.RandomHorizontalFlip(p=0.5),
@@ -105,7 +92,6 @@ def get_transforms():
 
 
 def train_epoch(model, loader, criterion, optimizer):
-    """Run one training epoch."""
     model.train()
     running_loss = 0.0
     correct = 0
@@ -127,9 +113,8 @@ def train_epoch(model, loader, criterion, optimizer):
 
     return running_loss / len(loader), 100 * correct / total
 
-
+#run validation and return loss, accuracy, predictions, labels, and probabilities
 def validate(model, loader, criterion):
-    """Run validation and return loss, accuracy, predictions, labels, and probabilities."""
     model.eval()
     running_loss = 0.0
     correct = 0
@@ -157,28 +142,17 @@ def validate(model, loader, criterion):
 
     return running_loss / len(loader), 100 * correct / total, all_preds, all_labels, all_probs
 
-
+#full EfficientNet-B0 training pipeline with cross-validation
 def train_model(
-    arch: str = DEFAULT_MODEL_ARCH,
+    arch: str = MODEL_ARCH,
     epochs: int = NUM_EPOCHS,
     batch_size: int = BATCH_SIZE,
     lr: float = LEARNING_RATE,
 ) -> dict:
-    """
-    Full training pipeline with 3-fold cross-validation:
-    1. Download all labeled images from S3
-    2. Run N_FOLDS CV folds — train, evaluate, collect metrics per fold
-    3. Print averaged CV metrics and aggregated ROC curve
-    4. Retrain final model on full dataset using avg epochs from CV
-    5. Save .pth checkpoint and clean up
-
-    Returns:
-        Dict with model path, architecture, and CV metrics
-    """
+    
     print(f"\nUsing device: {DEVICE}")
     print(f"Architecture: {arch}, Epochs: {epochs}, Batch size: {batch_size}, LR: {lr}")
 
-    # --- Step 1: Download all data from S3 ---
     print("\n" + "=" * 60)
     print("DOWNLOADING TRAINING DATA FROM S3")
     print("=" * 60)
@@ -187,8 +161,8 @@ def train_model(
 
     train_transform, val_transform = get_transforms()
 
-    # Two dataset instances of the same directory — one per transform
-    # Subsets index into these, so train indices get augmentation, val indices don't
+    #two dataset instances of the same directory (one per transform)
+    #subsets index into these, so train indices get augmentation, val indices don't
     full_train_ds = datasets.ImageFolder(str(all_dir), transform=train_transform)
     full_val_ds = datasets.ImageFolder(str(all_dir), transform=val_transform)
 
@@ -198,7 +172,6 @@ def train_model(
     print(f"\nClasses: {class_names}")
     print(f"Total samples: {len(full_train_ds)}")
 
-    # --- Step 2: 3-Fold Cross-Validation ---
     print("\n" + "=" * 60)
     print(f"{N_FOLDS}-FOLD CROSS-VALIDATION")
     print("=" * 60)
@@ -219,7 +192,7 @@ def train_model(
             Subset(full_val_ds, val_idx), batch_size=batch_size, shuffle=False, num_workers=0
         )
 
-        # Class weights from this fold's training split
+        #class weights from this fold's training split
         fold_targets = targets[train_idx]
         class_counts = torch.tensor(
             [np.sum(fold_targets == i) for i in range(len(class_names))],
@@ -227,7 +200,7 @@ def train_model(
         )
         class_weights = class_counts.sum() / (len(class_counts) * class_counts)
 
-        model = get_model(arch=arch, num_classes=NUM_CLASSES).to(DEVICE)
+        model = get_model(num_classes=NUM_CLASSES).to(DEVICE)
         criterion = nn.CrossEntropyLoss(weight=class_weights.to(DEVICE))
         optimizer = optim.Adam(model.parameters(), lr=lr)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -237,7 +210,7 @@ def train_model(
         best_val_acc = 0.0
         patience_counter = 0
         best_epoch = 0
-        temp_path = ML_MODELS_DIR / f"_fold{fold + 1}_best.pth"
+        fold_best_path = ML_MODELS_DIR / f"_fold{fold + 1}_best.pth"
 
         for epoch in range(epochs):
             train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer)
@@ -254,7 +227,7 @@ def train_model(
                 best_val_acc = val_acc
                 patience_counter = 0
                 best_epoch = epoch + 1
-                torch.save(model.state_dict(), temp_path)
+                torch.save(model.state_dict(), fold_best_path)
                 print(f"    -> New best (Val Acc: {val_acc:.2f}%)")
             else:
                 patience_counter += 1
@@ -263,10 +236,9 @@ def train_model(
                 print(f"  Early stopping at epoch {epoch + 1}")
                 break
 
-        # Evaluate best model for this fold
-        if temp_path.exists():
-            model.load_state_dict(torch.load(temp_path, map_location=DEVICE, weights_only=True))
-            temp_path.unlink()
+        if fold_best_path.exists():
+            model.load_state_dict(torch.load(fold_best_path, map_location=DEVICE, weights_only=True))
+            fold_best_path.unlink()
 
         _, fold_acc, fold_preds, fold_labels, fold_probs = validate(model, val_loader, criterion)
 
@@ -295,7 +267,6 @@ def train_model(
             "probs": fold_probs,
         })
 
-    # --- Step 3: Print CV summary ---
     print("\n" + "=" * 60)
     print(f"{N_FOLDS}-FOLD CROSS-VALIDATION SUMMARY")
     print("=" * 60)
@@ -319,9 +290,9 @@ def train_model(
     print(f"  Mean AUC-ROC:     {mean_auc:.4f}")
     print(f"  Avg Best Epoch:   {avg_best_epoch}")
 
-    # Aggregate all fold predictions for overall report and ROC curve
+    #aggregate all fold predictions for overall report and ROC curve
     all_preds = [p for r in fold_results for p in r["preds"]]
-    all_labels = [l for r in fold_results for l in r["labels"]]
+    all_labels = [label for r in fold_results for label in r["labels"]]
     all_probs = [p for r in fold_results for p in r["probs"]]
 
     report = classification_report(all_labels, all_preds, target_names=class_names, output_dict=True)
@@ -339,10 +310,9 @@ def train_model(
 
     # Save ROC curve plot — uses aggregated CV predictions (validation set, not training data)
     roc_plot_path = ML_MODELS_DIR / "roc_curve.png"
-    save_roc_curve(fpr, tpr, mean_auc, fold_results, roc_plot_path)
+    save_roc_curve(fpr, tpr, mean_auc, fold_results, roc_plot_path, arch)
     print(f"\n  ROC curve saved to: {roc_plot_path}")
 
-    # --- Step 4: Retrain final model on full dataset ---
     print("\n" + "=" * 60)
     print("FINAL MODEL TRAINING (full dataset)")
     print("=" * 60)
@@ -356,7 +326,7 @@ def train_model(
     )
     class_weights_full = class_counts_full.sum() / (len(class_counts_full) * class_counts_full)
 
-    final_model = get_model(arch=arch, num_classes=NUM_CLASSES).to(DEVICE)
+    final_model = get_model(num_classes=NUM_CLASSES).to(DEVICE)
     final_criterion = nn.CrossEntropyLoss(weight=class_weights_full.to(DEVICE))
     final_optimizer = optim.Adam(final_model.parameters(), lr=lr)
 
@@ -364,7 +334,6 @@ def train_model(
         train_loss, train_acc = train_epoch(final_model, full_loader, final_criterion, final_optimizer)
         print(f"  Epoch {epoch + 1:02d}/{avg_best_epoch} | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%")
 
-    # --- Step 5: Save checkpoint ---
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_filename = f"{arch}_{timestamp}.pth"
 
@@ -400,7 +369,6 @@ def train_model(
     else:
         print(f"\nWARNING: Model save FAILED!")
 
-    # --- Step 6: Clean up ---
     cleanup_training_data()
 
     return {
@@ -417,8 +385,8 @@ def train_model(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train dental image CNN classifier")
     parser.add_argument(
-        "--arch", default=DEFAULT_MODEL_ARCH,
-        choices=["resnet50", "efficientnet_b0", "densenet121"],
+        "--arch", default=MODEL_ARCH,
+        choices=["efficientnet_b0"],
         help="Model architecture",
     )
     parser.add_argument("--epochs", type=int, default=NUM_EPOCHS, help="Number of epochs")
