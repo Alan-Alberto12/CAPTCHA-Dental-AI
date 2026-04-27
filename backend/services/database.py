@@ -2,8 +2,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import logging
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://captcha_user:captcha_password@localhost:5432/captcha_dental_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger(__name__).info(f"Connecting to DB host: {DATABASE_URL.split('@')[-1].split('/')[0]}")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

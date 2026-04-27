@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { API_URL } from "../config";
 import { useNavigate } from "react-router-dom";
 import { usePresignedImages } from "../hooks/usePresignedImages";
 import PresignedImage from "../components/PresignedImage";
@@ -29,6 +30,8 @@ export default function PlayPage() {
     // Session completion
     const [sessionCompleted, setSessionCompleted] = useState(false);
 
+    const [pointsAwarded, setPointsAwarded] = useState(null);
+
     // Prevent duplicate session fetches (React StrictMode protection)
     const hasFetchedSession = useRef(false);
 
@@ -40,7 +43,7 @@ export default function PlayPage() {
             const token = localStorage.getItem("token");
             if (!token) return null;
 
-            const response = await fetch("http://127.0.0.1:8000/auth/sessions/current", {
+            const response = await fetch(`${API_URL}/auth/sessions/current`, {
                 method: "GET",
                 headers: { "Authorization": `Bearer ${token}` }
             });
@@ -82,8 +85,8 @@ export default function PlayPage() {
             }
 
             const url = forceNew
-                ? "http://127.0.0.1:8000/auth/sessions/next?force_new=true"
-                : "http://127.0.0.1:8000/auth/sessions/next";
+                ? `${API_URL}/auth/sessions/next?force_new=true`
+                : `${API_URL}/auth/sessions/next`;
 
             const response = await fetch(url, {
                 method: "GET",
@@ -167,7 +170,7 @@ export default function PlayPage() {
         try {
             const token = localStorage.getItem("token");
 
-            const response = await fetch("http://127.0.0.1:8000/auth/annotations", {
+            const response = await fetch(`${API_URL}/auth/annotations`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -194,6 +197,8 @@ export default function PlayPage() {
                 if (newAnsweredQuestions.size === session.questions.length) {
                     setSessionCompleted(true);
                     setMessage("🎉 Session completed! All questions answered.");
+                    // Award points for this completed session
+                    awardSessionPoints(session.session_id);
                 } else {
                     setMessage("✅ Answer submitted!");
                     // Auto-advance to next unanswered question after 1 second
@@ -248,8 +253,30 @@ export default function PlayPage() {
         setSelectedImages([]);
     };
 
+    const awardSessionPoints = async (sessionId) => {
+        try {
+            const token = localStorage.getItem("token");
+            if (!token) return;
+
+            const response = await fetch(`${API_URL}/leaderboard/session/complete/${sessionId}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setPointsAwarded(data);
+                console.log("Points awarded:", data);
+            }
+            // Silently ignore errors (e.g. points already awarded) — don't disrupt UX
+        } catch (err) {
+            console.error("Error awarding points:", err);
+        }
+    };
+
     const handleNewSession = () => {
         hasFetchedSession.current = false;
+        setPointsAwarded(null);
         fetchNewSession(true); // Force new session
     };
 
@@ -466,6 +493,23 @@ export default function PlayPage() {
                             <p className="text-[#F5EEDC] opacity-80 mb-4">
                                 You answered all {session.questions.length} questions.
                             </p>
+
+                            {/* Points Awarded Banner */}
+                            {pointsAwarded && (
+                                <div className="mb-4 bg-yellow-400/20 border border-yellow-400 rounded-xl px-4 py-4">
+                                    <p className="text-yellow-300 font-bold text-lg mb-2">
+                                        +{pointsAwarded.total_awarded} pts earned!
+                                    </p>
+                                    <div className="space-y-1">
+                                        {pointsAwarded.breakdown.map((item, i) => (
+                                            <p key={i} className="text-[#F5EEDC] text-xs">
+                                                +{item.points} — {item.reason.replace(/_/g, ' ')}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="bg-white/10 rounded-lg px-4 py-3">
                                 <p className="text-[#F5EEDC] text-sm">
                                     💡 Click "Start New Session" to begin a fresh session. Your progress is saved!
