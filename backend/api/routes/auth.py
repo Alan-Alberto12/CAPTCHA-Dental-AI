@@ -1,6 +1,4 @@
 # FastAPI core
-from fileinput import filename
-
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -10,7 +8,6 @@ import secrets
 import hashlib
 import zipfile
 import io
-import random
 
 from services.database import get_db
 from services.s3_service import s3_service
@@ -27,20 +24,18 @@ from models.user import (
     Image,
     Question,
     UserStats,
-    Prediction,
     PointTransaction,
 )
 from schemas.user import (
     UserCreate,
-    UserLogin,
     UserResponse,
     Token,
     ForgotPasswordRequest,
     ResetPasswordRequest,
     EmailConfirmRequest,
+    ResendConfirmationRequest,
     UserUpdate,
     AdminUserRequest,
-    ChallengeResponse,
     AnnotationResponse,
     AnnotationCreate,
     BulkImageImport,
@@ -202,9 +197,6 @@ def signup(user_data: UserCreate, bg: BackgroundTasks, db: Session = Depends(get
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login and get access token."""
-    user = db.query(User).filter(
-        (User.email == form_data.username) | (User.username == form_data.username)
-    ).first()
     login_input = form_data.username
     if "@" in login_input:
         user = db.query(User).filter(func.lower(User.email) == login_input.lower()).first()
@@ -319,6 +311,56 @@ def send_confirmation_email_endpoint(
     bg.add_task(send_confirmation_email, to_email=current_user.email, confirm_link=confirm_link)
 
     return {"message": "Confirmation email sent."}
+
+
+@router.post("/resend-confirmation")
+def resend_confirmation_email(
+    payload: ResendConfirmationRequest,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Resend confirmation email. Public endpoint (no auth). Rate-limited to once per 60 seconds."""
+    user = db.query(User).filter(func.lower(User.email) == payload.email.lower()).first()
+
+    # Always return success to avoid email enumeration
+    if not user or user.is_verified:
+        return {"message": "If that email exists and is unverified, a confirmation email has been sent."}
+
+    # Cooldown check: expires = created_at + 1h, so if expires > now + 59min the token is < 60s old
+    cutoff = datetime.now(timezone.utc) + timedelta(seconds=3540)
+    recent_token = (
+        db.query(EmailConfirmationToken)
+        .filter(
+            EmailConfirmationToken.user_id == user.id,
+            EmailConfirmationToken.expires > cutoff,
+            EmailConfirmationToken.used == False,
+        )
+        .first()
+    )
+
+    if recent_token:
+        sent_at = recent_token.expires - timedelta(hours=1)
+        seconds_remaining = int(60 - (datetime.now(timezone.utc) - sent_at).total_seconds())
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Please wait {seconds_remaining} second(s) before requesting another email.",
+        )
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    confirmation = EmailConfirmationToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db.add(confirmation)
+    db.commit()
+
+    confirm_link = f"{settings.FRONTEND_URL.rstrip('/')}/login?token={raw_token}"
+    bg.add_task(send_confirmation_email, to_email=user.email, confirm_link=confirm_link)
+
+    return {"message": "If that email exists and is unverified, a confirmation email has been sent."}
 
 
 @router.post("/confirm-email")
@@ -774,11 +816,6 @@ def get_my_annotations(db: Session = Depends(get_db), current_user: User = Depen
     return annotations
 
 
-@router.post("/admin/import-images-url", status_code=201)
-def import_images_url(payload: BulkImageImport, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Import multiple images from URLs (admin only)"""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can import images")
 @router.patch("/sessions/{session_id}/title")
 def update_session_title(
     session_id: int,
@@ -970,9 +1007,6 @@ async def import_images_file(
             else:
                 results.append(result)
 
-        except Exception as e:
-            failed.append({"filename": file.filename, "error": str(e)})
-
     saved_to_db_count = sum(1 for r in results if r.get("saved_to_db"))
     already_existed_count = sum(1 for r in results if r.get("already_existed"))
 
@@ -1043,13 +1077,9 @@ def update_user(
     return current_user
 
 
-# Admin: All Users Submission Overview  ✅ FIXED (uses case(), not func.case())
 @router.get("/admin/users/submissions-overview", response_model=AdminAllUsersOverview)
-def all_users_submission_overview(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def all_users_submission_overview(db: Session = Depends(get_db), _: User = Depends(get_current_admin)):
     """Admin: aggregated submission stats for all users."""
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can view this data")
-
     sessions_sq = (
         db.query(
             AnnotationSession.user_id.label("user_id"),
